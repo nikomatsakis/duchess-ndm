@@ -1,6 +1,7 @@
 use crate::{
+    argument::DuchessDeclaration,
     class_info::{
-        ClassRef, Constructor, DotId, Id, Method, NonRepeatingType, RefType, ScalarType,
+        ClassRef, Constructor, DotId, Id, Method, NonRepeatingType, RefType, RootMap, ScalarType,
         SpannedClassInfo, SpannedPackageInfo, Type,
     },
     span_error::SpanError,
@@ -10,6 +11,20 @@ use once_cell::sync::OnceCell;
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote_spanned;
 use rust_format::Formatter;
+
+impl DuchessDeclaration {
+    pub fn into_tokens(self) -> Result<TokenStream, SpanError> {
+        let root_map = self.to_root_map()?;
+
+        root_map.into_tokens()
+    }
+}
+
+impl RootMap {
+    fn into_tokens(self) -> Result<TokenStream, SpanError> {
+        self.into_packages().map(|p| p.into_tokens(0)).collect()
+    }
+}
 
 /// The various pieces that we use to reflect a Java method into Rust.
 struct MethodOutput {
@@ -29,7 +44,7 @@ struct MethodOutput {
 }
 
 impl SpannedPackageInfo {
-    pub fn into_tokens(self, depth: usize) -> Result<TokenStream, SpanError> {
+    fn into_tokens(self, depth: usize) -> Result<TokenStream, SpanError> {
         let name = Ident::new(&self.name, self.span);
         let inner: TokenStream = self
             .subpackages

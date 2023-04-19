@@ -9,6 +9,39 @@ use crate::{
     span_error::SpanError,
 };
 
+#[derive(Debug)]
+pub struct RootMap {
+    pub subpackages: BTreeMap<Id, SpannedPackageInfo>,
+}
+
+impl RootMap {
+    /// Finds the class with the given name (if present).
+    pub fn find_class(&self, cn: &DotId) -> Option<&SpannedClassInfo> {
+        let (package, class_name) = cn.split();
+        let package_info = self.find_package(package)?;
+        package_info.find_class(class_name)
+    }
+
+    /// Finds the package with the given name (if present).
+    pub fn find_package(&self, ids: &[Id]) -> Option<&SpannedPackageInfo> {
+        let (p0, ps) = ids.split_first().unwrap();
+        self.subpackages.get(p0)?.find_subpackage(ps)
+    }
+
+    pub fn into_packages(self) -> impl Iterator<Item = SpannedPackageInfo> {
+        self.subpackages.into_values()
+    }
+
+    /// Find the names of all classes contained within.
+    pub fn class_names(&self) -> Vec<DotId> {
+        self.subpackages
+            .values()
+            .flat_map(|pkg| pkg.class_names(&[]))
+            .collect()
+    }
+}
+
+#[derive(Debug)]
 pub struct SpannedPackageInfo {
     pub name: Id,
     pub span: Span,
@@ -16,6 +49,44 @@ pub struct SpannedPackageInfo {
     pub classes: Vec<SpannedClassInfo>,
 }
 
+impl SpannedPackageInfo {
+    /// Find a (sub)package given its relative name
+    pub fn find_subpackage(&self, ids: &[Id]) -> Option<&SpannedPackageInfo> {
+        let Some((p0, ps)) = ids.split_first() else {
+            return Some(self);
+        };
+
+        self.subpackages.get(p0)?.find_subpackage(ps)
+    }
+
+    /// Find a class in this package
+    pub fn find_class(&self, id: &Id) -> Option<&SpannedClassInfo> {
+        self.classes.iter().find(|c| c.info.name.is_class(id))
+    }
+
+    /// Find the names of all classes contained within self
+    pub fn class_names(&self, parent_package: &[Id]) -> Vec<DotId> {
+        // Name of this package
+        let package_name: Vec<Id> = parent_package
+            .iter()
+            .chain(std::iter::once(&self.name))
+            .cloned()
+            .collect();
+
+        let classes_from_subpackages = self
+            .subpackages
+            .values()
+            .flat_map(|pkg| pkg.class_names(&package_name));
+
+        let classes_from_this_package = self.classes.iter().map(|c| c.info.name.clone());
+
+        classes_from_subpackages
+            .chain(classes_from_this_package)
+            .collect()
+    }
+}
+
+#[derive(Debug)]
 pub struct SpannedClassInfo {
     /// The complete class info loaded from javap
     pub info: ClassInfo,
