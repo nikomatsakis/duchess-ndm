@@ -16,13 +16,28 @@ impl DuchessDeclaration {
     pub fn to_tokens(&self) -> Result<TokenStream, SpanError> {
         let root_map = self.to_root_map()?;
         let () = root_map.check()?;
-        root_map.to_tokens()
+        let output = root_map.to_tokens()?;
+
+        if let Ok(f) = std::env::var("DUCHESS_DEBUG") {
+            if f == "1" {
+                match rust_format::RustFmt::default().format_tokens(output.clone()) {
+                    Ok(v) => {
+                        eprintln!("{v}");
+                    }
+                    Err(_) => {
+                        eprintln!("{output:?}");
+                    }
+                }
+            }
+        }
+
+        Ok(output)
     }
 }
 
 impl RootMap {
     fn to_tokens(self) -> Result<TokenStream, SpanError> {
-        self.to_packages().map(|p| p.to_tokens(0)).collect()
+        self.to_packages().map(|p| p.to_tokens(1)).collect()
     }
 }
 
@@ -53,15 +68,15 @@ impl SpannedPackageInfo {
             .chain(self.classes.iter().map(|c| c.to_tokens()))
             .collect::<Result<_, _>>()?;
 
-        let path: TokenStream = (1..depth)
-            .map(|_| quote_spanned!(self.span => "::super"))
+        let path: Vec<TokenStream> = (0..depth)
+            .map(|_| quote_spanned!(self.span => super))
             .collect();
 
         Ok(quote_spanned!(self.span =>
             #[allow(unused_imports)]
             pub mod #name {
                 // Import the contents of the parent module that we are created inside
-                use super #path :: *;
+                use #(#path ::)* *;
 
                 // Import the java package provided by duchess
                 use duchess::java;
@@ -113,7 +128,7 @@ impl SpannedClassInfo {
             #[allow(non_camel_case_types)]
             pub trait #ext_trait_name<#(#java_class_generics,)*> : duchess::JvmOp
             where
-                #(#java_class_generics : JavaObject,)*
+                #(#java_class_generics : duchess::JavaObject,)*
             {
                 #(#trait_methods)*
             }
@@ -135,14 +150,14 @@ impl SpannedClassInfo {
 
                 unsafe impl<#(#java_class_generics,)*> JavaObject for #struct_name<#(#java_class_generics,)*>
                 where
-                    #(#java_class_generics: JavaObject,)*
+                    #(#java_class_generics: duchess::JavaObject,)*
                 {
                     #cached_class
                 }
 
                 unsafe impl<#(#java_class_generics,)*> plumbing::Upcast<#struct_name<#(#java_class_generics,)*>> for #struct_name<#(#java_class_generics,)*>
                 where
-                    #(#java_class_generics: JavaObject,)*
+                    #(#java_class_generics: duchess::JavaObject,)*
                 {}
 
                 impl<#(#java_class_generics,)*> AsRef<#struct_name<#(#java_class_generics,)*>> for #struct_name<#(#java_class_generics,)*>
@@ -167,7 +182,7 @@ impl SpannedClassInfo {
                 where
                     This: JvmOp,
                     for<'jvm> This::Output<'jvm>: AsRef<#this_ty>,
-                    #(#java_class_generics: JavaObject,)*
+                    #(#java_class_generics: duchess::JavaObject,)*
                 {
                     #(#trait_impl_methods)*
                 }
@@ -175,7 +190,7 @@ impl SpannedClassInfo {
         };
 
         if let Ok(f) = std::env::var("DUCHESS_DEBUG") {
-            if f == "*" || f == "1" || self.info.name.to_string().starts_with(&f) {
+            if self.info.name.to_string().starts_with(&f) {
                 match rust_format::RustFmt::default().format_tokens(output.clone()) {
                     Ok(v) => {
                         eprintln!("{v}");
@@ -202,7 +217,7 @@ impl SpannedClassInfo {
                 Ok(quote_spanned!(self.span =>
                     unsafe impl<#(#java_class_generics,)*> plumbing::Upcast<#tokens> for #struct_name<#(#java_class_generics,)*>
                     where
-                        #(#java_class_generics: JavaObject,)*
+                        #(#java_class_generics: duchess::JavaObject,)*
                     {}
                 ))
             })
@@ -214,7 +229,7 @@ impl SpannedClassInfo {
     fn resolve_upcasts(&self) -> impl Iterator<Item = &'_ ClassRef> {
         static OBJECT: OnceCell<ClassRef> = OnceCell::new();
         let object = OBJECT.get_or_init(|| ClassRef {
-            name: "java.lang.Object".into(),
+            name: DotId::parse("java.lang.Object"),
             generics: vec![],
         });
 
@@ -270,7 +285,7 @@ impl SpannedClassInfo {
         let output = quote_spanned!(self.span =>
             impl< #(#java_class_generics,)* > #ty
             where
-                #(#java_class_generics: JavaObject,)*
+                #(#java_class_generics: duchess::JavaObject,)*
             {
                 pub fn new(
                     #(#input_names : impl #input_traits,)*
@@ -295,7 +310,7 @@ impl SpannedClassInfo {
                         #(#input_names,)*
                     >
                     where
-                        #(#java_class_generics: JavaObject,)*
+                        #(#java_class_generics: duchess::JavaObject,)*
                         #(#input_names : #input_traits,)*
                     {
                         type Input<'jvm> = ();
@@ -657,7 +672,7 @@ impl Signature {
                 if !self.rust_generics.contains(&ident) {
                     self.rust_generics.push(ident.clone());
                     self.where_clauses
-                        .push(quote_spanned!(self.span => #ident : JavaObject));
+                        .push(quote_spanned!(self.span => #ident : duchess::JavaObject));
                     return Ok(ident);
                 }
                 i += 1;
@@ -726,6 +741,7 @@ impl Signature {
                     ScalarType::F64 => quote_spanned!(self.span => Primitive::Double),
                     ScalarType::F32 => quote_spanned!(self.span => Primitive::Float),
                     ScalarType::Boolean => quote_spanned!(self.span => Primitive::Boolean),
+                    ScalarType::Char => quote_spanned!(self.span => Primitive::Char),
                 };
                 Ok(quote_spanned!(self.span => ReturnType::Primitive(#primitive)))
             }

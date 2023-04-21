@@ -4,11 +4,12 @@ use jni::{
 };
 
 use crate::{
-    java::lang::String as JavaString,
     jvm::JavaObjectExt,
     ops::{IntoJava, IntoRust},
     Jvm, JvmOp, Local,
 };
+
+use crate::java::lang::String as JavaString;
 
 pub trait ToJavaStringOp: JvmOp + Sized {
     fn to_java_string(self) -> JavaStringOp<Self>;

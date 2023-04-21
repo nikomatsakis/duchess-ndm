@@ -3,7 +3,6 @@
 mod array;
 mod cast;
 mod catch;
-mod collections;
 mod error;
 mod inspect;
 mod jvm;
@@ -40,4 +39,11 @@ pub mod plumbing {
     pub use crate::catch::try_catch;
     pub use crate::jvm::{FromJValue, JavaObjectExt};
     pub use crate::str::ToJavaStringOp;
+}
+
+mod jdk;
+
+pub mod java {
+    pub use crate::array::JavaArray as Array;
+    pub use crate::jdk::java::*;
 }
