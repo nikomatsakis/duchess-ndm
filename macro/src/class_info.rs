@@ -129,21 +129,6 @@ impl SpannedClassInfo {
     }
 }
 
-impl Parse for SpannedClassInfo {
-    fn parse(p: &mut crate::parse::Parser) -> Result<Option<Self>, SpanError> {
-        let Some(t) = p.eat_string_literal() else {
-            return Ok(None);
-        };
-        let span = p.last_span().unwrap();
-        let r = Self::parse(&t, span, MemberListing::all())?;
-        Ok(Some(r))
-    }
-
-    fn description() -> String {
-        format!("output from `javap -public -s`")
-    }
-}
-
 #[derive(Eq, Ord, PartialEq, PartialOrd, Clone, Debug)]
 pub struct ClassInfo {
     pub flags: Flags,

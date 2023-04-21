@@ -40,5 +40,4 @@ pub mod plumbing {
     pub use crate::catch::try_catch;
     pub use crate::jvm::{FromJValue, JavaObjectExt};
     pub use crate::str::ToJavaStringOp;
-    pub use duchess_macro::duchess_javap;
 }
