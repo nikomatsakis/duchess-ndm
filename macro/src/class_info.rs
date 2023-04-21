@@ -9,6 +9,8 @@ use crate::{
     span_error::SpanError,
 };
 
+/// Stores all the data about the classes/packages to be translated
+/// as well as whatever we have learned from reflection.
 #[derive(Debug)]
 pub struct RootMap {
     pub subpackages: BTreeMap<Id, SpannedPackageInfo>,
@@ -28,8 +30,8 @@ impl RootMap {
         self.subpackages.get(p0)?.find_subpackage(ps)
     }
 
-    pub fn into_packages(self) -> impl Iterator<Item = SpannedPackageInfo> {
-        self.subpackages.into_values()
+    pub fn to_packages(&self) -> impl Iterator<Item = &SpannedPackageInfo> {
+        self.subpackages.values()
     }
 
     /// Find the names of all classes contained within.
