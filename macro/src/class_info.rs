@@ -101,17 +101,6 @@ pub struct SpannedClassInfo {
 }
 
 impl SpannedClassInfo {
-    pub fn parse(t: &str, span: Span, members: MemberListing) -> Result<Self, SpanError> {
-        match javap::parse_class_info(&t) {
-            Ok(info) => Ok(SpannedClassInfo {
-                span,
-                info,
-                members,
-            }),
-            Err(message) => Err(SpanError { span, message }),
-        }
-    }
-
     /// Constructors selected by the user for codegen
     pub fn selected_constructors(&self) -> impl Iterator<Item = &Constructor> {
         self.info
@@ -140,6 +129,12 @@ pub struct ClassInfo {
     pub constructors: Vec<Constructor>,
     pub fields: Vec<Field>,
     pub methods: Vec<Method>,
+}
+
+impl ClassInfo {
+    pub fn parse(t: &str) -> Result<Self, String> {
+        javap::parse_class_info(t)
+    }
 }
 
 #[derive(Eq, Ord, PartialEq, PartialOrd, Clone, Debug)]
@@ -506,6 +501,16 @@ impl From<&Id> for DotId {
 }
 
 impl DotId {
+    pub fn parse(value: impl AsRef<str>) -> Self {
+        let value: &str = value.as_ref();
+        assert!(!value.is_empty());
+        let di = DotId {
+            ids: value.split('.').map(Id::from).collect(),
+        };
+        assert!(di.ids.len() >= 1);
+        di
+    }
+
     pub fn dot(mut self, s: &str) -> DotId {
         self.ids.push(Id::from(s));
         self
