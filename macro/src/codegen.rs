@@ -151,6 +151,15 @@ impl SpannedClassInfo {
                     #(#java_class_generics: JavaObject,)*
                 {}
 
+                impl<#(#java_class_generics,)*> AsRef<#struct_name<#(#java_class_generics,)*>> for #struct_name<#(#java_class_generics,)*>
+                where
+                    #(#java_class_generics: duchess::JavaObject,)*
+                {
+                    fn as_ref(&self) -> &#struct_name<#(#java_class_generics,)*> {
+                        self
+                    }
+                }
+
                 #upcast_impls
 
                 #(#constructors)*
