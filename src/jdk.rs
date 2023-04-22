@@ -27,6 +27,10 @@ duchess_macro::java_package! {
 
     class Iterable { }
 
+    class Class { }
+
+    class Throwable { }
+
     package java.lang.constant;
 
     class ConstantDesc { }
