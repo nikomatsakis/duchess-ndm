@@ -153,6 +153,14 @@ impl Driver<'_> {
                 }
             }
         }
+
+        impl<'jvm> duchess::plumbing::IntoGlobal<'jvm> for #self_ty {
+            type Output = #self_ty;
+
+            fn into_global(self, _jvm: &mut duchess::Jvm<'jvm>) -> duchess::Result<'jvm, #self_ty> {
+                Ok(self)
+            }
+        }
         ))
     }
 

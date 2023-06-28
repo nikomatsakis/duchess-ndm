@@ -56,7 +56,7 @@ pub mod plumbing {
     pub use crate::error::check_exception;
     pub use crate::find::{find_class, find_constructor, find_field, find_method};
     pub use crate::from_ref::FromRef;
-    pub use crate::global::GlobalOp;
+    pub use crate::global::{GlobalOp, IntoGlobal};
     pub use crate::jvm::native_function_returning_object;
     pub use crate::jvm::native_function_returning_scalar;
     pub use crate::jvm::JavaObjectExt;

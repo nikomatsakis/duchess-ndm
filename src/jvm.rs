@@ -106,9 +106,9 @@ pub trait JvmOp: Copy {
     /// you can use [`global()`][`Self::global`] to create a global reference.
     fn execute<R>(self) -> crate::GlobalResult<R>
     where
-        for<'jvm> Self: JvmOp<Output<'jvm> = R>,
+        for<'jvm> <Self as JvmOp>::Output<'jvm>: IntoGlobal<'jvm, Output = R>,
     {
-        Jvm::with(|jvm| self.execute_with(jvm))
+        Jvm::with(|jvm| self.global().execute_with(jvm))
     }
 
     fn execute_with<'jvm>(self, jvm: &mut Jvm<'jvm>) -> crate::Result<'jvm, Self::Output<'jvm>>;
