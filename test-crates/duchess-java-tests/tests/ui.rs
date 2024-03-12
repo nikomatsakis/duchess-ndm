@@ -4,8 +4,9 @@ use ui_test::*;
 fn main() -> color_eyre::eyre::Result<()> {
     std::env::set_var("CLASSPATH", "../target/java");
 
-    // Tests can be blessed with `cargo test -- -- --bless`.
-    let bless = std::env::args().any(|arg| arg == "--bless");
+    // Tests can be blessed with `cargo test -- -- --bless`
+    // or by setting BLESS=1.
+    let bless = std::env::var_os("BLESS").is_some() || std::env::args().any(|arg| arg == "--bless");
 
     let mut config = Config {
         ..Config::rustc(Path::new("tests").join("ui"))
@@ -53,6 +54,6 @@ fn main() -> color_eyre::eyre::Result<()> {
             ui_test::status_emitter::Gha::<true> {
                 name: "ui tests".into(),
             },
-        )
+        ),
     )
 }
