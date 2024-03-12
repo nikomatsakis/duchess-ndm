@@ -1,6 +1,6 @@
-import java.lang.ref.Cleaner;
+package callback;
 
-import duchess.RustReference;
+import java.lang.ref.Cleaner;
 
 public class Dummy implements Callback {
     long nativePointer;
@@ -8,7 +8,7 @@ public class Dummy implements Callback {
     static Cleaner cleaner = Cleaner.create();
 
     public Dummy(long nativePointer) {
-        this.nativePointer = nativePosinter;
+        this.nativePointer = nativePointer;
         cleaner.register(this, () -> {
             drop(nativePointer);
         });
@@ -18,12 +18,6 @@ public class Dummy implements Callback {
 
     public String getName(String input) {
         return this.getNameNative(nativePointer, input);
-    }
-
-    native int getAgeNative(long nativePointer);
-
-    public int getAge() {
-        return this.getAgeNative(nativePointer);
     }
 
     native static void drop(long nativePointer);
