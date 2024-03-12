@@ -69,7 +69,7 @@ fn build_java(input: &BuildFile) -> std::io::Result<()> {
 
     if !output.status.success() {
         let stdout: String =
-            String::from_utf8(output.stdout).expect("Unable to parse javac output");
+            String::from_utf8(output.stderr).expect("Unable to parse javac output");
 
         println!(
             "cargo:warning=Failed to build {:?}: {}",
