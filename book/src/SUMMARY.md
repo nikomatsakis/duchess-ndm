@@ -7,6 +7,7 @@
     - [Implementing native methods](./implementing_native_methods.md)
 - [Reference](./reference.md)
     - [The `java_package` macro](./java_package.md)
+    - [Translating Java method signatures to Rust](./java_signatures_in_rust.md)
     - [The `java_function` macro](./java_function.md)
         - [Linking native functions into the JVM](./linking_native_functions.md)
     - [Deriving Java/Rust conversions](./derive.md)
