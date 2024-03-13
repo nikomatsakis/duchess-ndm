@@ -2,6 +2,7 @@
 
 use duchess::java;
 use duchess::prelude::*;
+use std::sync::Arc;
 
 duchess::java_package! {
     package callback;
@@ -21,6 +22,7 @@ impl Drop for Callback {
     }
 }
 
+#[derive(Clone)]
 pub struct ToJavaInterface {
     cb: Arc<Callback>,
 }
@@ -34,9 +36,12 @@ impl duchess::IntoJava<callback::Callback> for Callback {
 }
 
 impl duchess::JvmOp for ToJavaInterface {
-    type Output<'jvm> = Local<'jvm, callback::Dummy>;
+    type Output<'jvm> = duchess::Local<'jvm, callback::Dummy>;
 
-    fn execute_with<'jvm>(self, jvm: Jvm<'jvm>) -> Self::Output<'jvm> {
+    fn execute_with<'jvm>(
+        self,
+        jvm: &mut duchess::Jvm<'jvm>,
+    ) -> duchess::Result<'jvm, Self::Output<'jvm>> {
         let value = self.cb.clone();
         let value_long: i64 = Arc::into_raw(value) as usize as i64;
         callback::Dummy::new(value_long).execute_with(jvm)
@@ -71,13 +76,13 @@ fn main() -> duchess::GlobalResult<()> {
     let ccb = callback::CallCallback::new().global().execute()?;
 
     // wrap the Rust box in an instance of `Dummy`
-    let value = Box::new(Callback {
-        last_name: "Rustacean".to_string(),
-    });
-    let value_long: i64 = Box::into_raw(value) as usize as i64;
-    let arg = callback::Dummy::new(value_long).global().execute()?;
-
-    let result: String = ccb.method(&arg).assert_not_null().to_rust().execute()?;
+    let result: String = ccb
+        .method(Callback {
+            last_name: "Rustacean".to_string(),
+        })
+        .assert_not_null()
+        .to_rust()
+        .execute()?;
 
     println!("{result}");
 
