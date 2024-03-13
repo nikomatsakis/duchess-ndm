@@ -31,7 +31,7 @@ use once_cell::sync::OnceCell;
 /// *Eventual goal:* Each call to `execute` represents a single crossing
 /// over into the JVM, so the more you can chain together your jvm-ops,
 /// the better.
-pub trait JvmOp: Copy {
+pub trait JvmOp: Clone {
     type Output<'jvm>;
 
     fn assert_not_null<T>(self) -> NotNull<Self>
@@ -121,7 +121,7 @@ pub trait JvmOp: Copy {
 /// Ideally this would be a "trait alias" for `JvmOp<Output<'_>: JvmRefOp<T>>`, but
 /// adding a where-clause to that effect did not seem to work in all cases, so we define
 /// a distinct associated type.
-pub trait JvmRefOp<T: JavaObject>: Copy {
+pub trait JvmRefOp<T: JavaObject>: Clone {
     // nikomatsakis:
     type Output<'jvm>: AsJRef<T>;
 

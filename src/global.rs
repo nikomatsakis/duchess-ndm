@@ -1,7 +1,8 @@
 use crate::{Global, JavaObject, Jvm, JvmOp, Local};
 
 /// [`JvmOp`][] that converts a local result into a global one.
-#[derive_where::derive_where(Copy, Clone)]
+#[derive_where::derive_where(Clone)]
+#[derive_where(Copy; J: Copy)]
 pub struct GlobalOp<J: JvmOp> {
     j: J,
 }
