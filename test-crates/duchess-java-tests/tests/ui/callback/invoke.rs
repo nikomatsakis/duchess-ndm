@@ -21,6 +21,28 @@ impl Drop for Callback {
     }
 }
 
+pub struct ToJavaInterface {
+    cb: Arc<Callback>,
+}
+
+impl duchess::IntoJava<callback::Callback> for Callback {
+    type JvmOp = ToJavaInterface;
+
+    fn into_op(self) -> Self::JvmOp {
+        ToJavaInterface { cb: Arc::new(self) }
+    }
+}
+
+impl duchess::JvmOp for ToJavaInterface {
+    type Output<'jvm> = Local<'jvm, callback::Dummy>;
+
+    fn execute_with<'jvm>(self, jvm: Jvm<'jvm>) -> Self::Output<'jvm> {
+        let value = self.cb.clone();
+        let value_long: i64 = Arc::into_raw(value) as usize as i64;
+        callback::Dummy::new(value_long).execute_with(jvm)
+    }
+}
+
 #[duchess::java_function(callback.Dummy::getNameNative)]
 fn get_name_native(
     _this: &callback::Dummy,
@@ -37,7 +59,7 @@ fn get_name_native(
 fn drop_native(native_pointer: i64) -> () {
     let native_pointer: *mut Callback = native_pointer as usize as *mut Callback;
     unsafe {
-        Box::from_raw(native_pointer);
+        Arc::from_raw(native_pointer);
     }
 }
 
