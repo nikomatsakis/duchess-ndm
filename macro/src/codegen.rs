@@ -320,7 +320,7 @@ impl ClassInfo {
             impl<#(#java_class_generics,)* #j, #n> #op_name<#(#java_class_generics,)* #j, #n>
             where
                 #(#java_class_generics: duchess::JavaObject,)*
-                #j: duchess::prelude::IntoJava<#name<#(#java_class_generics,)*>>,
+                #j: duchess::plumbing::JvmRefOp<#name<#(#java_class_generics,)*>>,
                 #n: duchess::plumbing::FromRef<#j>,
             {
                 #(#op_struct_methods)*
@@ -329,7 +329,7 @@ impl ClassInfo {
             impl<#(#java_class_generics,)* #j, #n> #obj_name<#(#java_class_generics,)* #j, #n>
             where
                 #(#java_class_generics: duchess::JavaObject,)*
-                for<'jvm> &'jvm #j: duchess::prelude::IntoJava<#this_ty>,
+                for<'jvm> &'jvm #j: duchess::plumbing::JvmRefOp<#this_ty>,
             {
                 #(#obj_struct_methods)*
             }
@@ -423,11 +423,13 @@ impl ClassInfo {
     fn constructor(&self, constructor: &Constructor) -> syn::Result<TokenStream> {
         let mut sig = Signature::new(self.name.class_name(), self.span, &self.generics);
 
-        let input_traits: Vec<_> = constructor
+        let (input_traits, jvm_op_traits): (Vec<_>, Vec<_>) = constructor
             .argument_tys
             .iter()
-            .map(|ty| sig.input_trait(ty))
-            .collect::<Result<_, _>>()?;
+            .map(|ty| sig.input_and_jvm_op_traits(ty))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .unzip();
 
         let input_names: Vec<_> = (0..input_traits.len())
             .map(|i| Ident::new(&format!("a{i}"), self.span))
@@ -470,7 +472,7 @@ impl ClassInfo {
                 >
                 where
                     #(#java_class_generics: duchess::JavaObject,)*
-                    #(#input_names : #input_traits,)*
+                    #(#input_names : #jvm_op_traits,)*
                 {
                 }
 
@@ -483,7 +485,7 @@ impl ClassInfo {
                 >
                 where
                     #(#java_class_generics: duchess::JavaObject,)*
-                    #(#input_names : #input_traits,)*
+                    #(#input_names : #jvm_op_traits,)*
                 {
                     fn clone(&self) -> Self {
                         *self
@@ -499,7 +501,7 @@ impl ClassInfo {
                 >
                 where
                     #(#java_class_generics: duchess::JavaObject,)*
-                    #(#input_names : #input_traits,)*
+                    #(#input_names : #jvm_op_traits,)*
                 {
                     type Output<'jvm> = duchess::Local<'jvm, #ty>;
 
@@ -556,7 +558,7 @@ impl ClassInfo {
                 }
 
                 Impl {
-                    #(#input_names: #input_names,)*
+                    #(#input_names: #input_names.into_op(),)*
                     phantom: ::core::default::Default::default()
                 }
             }
@@ -577,11 +579,13 @@ impl ClassInfo {
         let mut sig = Signature::new(&method.name, self.span, &self.generics)
             .with_internal_generics(&method.generics)?;
 
-        let input_traits: Vec<_> = method
+        let (input_traits, _jvm_op_traits): (Vec<_>, Vec<_>) = method
             .argument_tys
             .iter()
-            .map(|ty| sig.input_trait(ty))
-            .collect::<Result<_, _>>()?;
+            .map(|ty| sig.input_and_jvm_op_traits(ty))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .unzip();
 
         let input_names: Vec<_> = (0..input_traits.len())
             .map(|i| Ident::new(&format!("a{i}"), self.span))
@@ -631,11 +635,13 @@ impl ClassInfo {
         let mut sig = Signature::new(&method.name, self.span, &self.generics)
             .with_internal_generics(&method.generics)?;
 
-        let input_traits: Vec<_> = method
+        let (input_traits, _jvm_op_traits): (Vec<_>, Vec<_>) = method
             .argument_tys
             .iter()
-            .map(|ty| sig.input_trait(ty))
-            .collect::<Result<_, _>>()?;
+            .map(|ty| sig.input_and_jvm_op_traits(ty))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .unzip();
 
         let input_names: Vec<_> = (0..input_traits.len())
             .map(|i| Ident::new(&format!("a{i}"), self.span))
@@ -685,11 +691,13 @@ impl ClassInfo {
         let mut sig = Signature::new(&method.name, self.span, &self.generics)
             .with_internal_generics(&method.generics)?;
 
-        let input_traits: Vec<_> = method
+        let (input_traits, jvm_op_traits): (Vec<_>, Vec<_>) = method
             .argument_tys
             .iter()
-            .map(|ty| sig.input_trait(ty))
-            .collect::<Result<_, _>>()?;
+            .map(|ty| sig.input_and_jvm_op_traits(ty))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .unzip();
 
         let input_names: Vec<_> = (0..input_traits.len())
             .map(|i| Ident::new(&format!("a{i}"), self.span))
@@ -777,8 +785,8 @@ impl ClassInfo {
             impl<#(#method_struct_generics),*> ::core::marker::Copy
             for #rust_method_type_name<#(#method_struct_generics),*>
             where
-                #this: duchess::prelude::IntoJava<#this_ty>,
-                #(#input_names: #input_traits,)*
+                #this: duchess::plumbing::JvmRefOp<#this_ty>,
+                #(#input_names: #jvm_op_traits,)*
                 #(#java_class_generics: duchess::JavaObject,)*
                 #(#sig_where_clauses,)*
             {}
@@ -786,8 +794,8 @@ impl ClassInfo {
             impl<#(#method_struct_generics),*> ::core::clone::Clone
             for #rust_method_type_name<#(#method_struct_generics),*>
             where
-                #this: duchess::prelude::IntoJava<#this_ty>,
-                #(#input_names: #input_traits,)*
+                #this: duchess::plumbing::JvmRefOp<#this_ty>,
+                #(#input_names: #jvm_op_traits,)*
                 #(#java_class_generics: duchess::JavaObject,)*
                 #(#sig_where_clauses,)*
             {
@@ -799,8 +807,8 @@ impl ClassInfo {
             impl<#(#method_struct_generics),*> duchess::prelude::JvmOp
             for #rust_method_type_name<#(#method_struct_generics),*>
             where
-                #this: duchess::prelude::IntoJava<#this_ty>,
-                #(#input_names: #input_traits,)*
+                #this: duchess::plumbing::JvmRefOp<#this_ty>,
+                #(#input_names: #jvm_op_traits,)*
                 #(#java_class_generics: duchess::JavaObject,)*
                 #(#sig_where_clauses,)*
             {
@@ -810,7 +818,7 @@ impl ClassInfo {
                     self,
                     jvm: &mut duchess::Jvm<'jvm>,
                 ) -> duchess::Result<'jvm, Self::Output<'jvm>> {
-                    let this = self.#this.into_java(jvm)?;
+                    let this = self.#this.into_as_jref(jvm)?;
                     let this: & #this_ty = duchess::prelude::AsJRef::as_jref(&this)?;
                     let this = duchess::plumbing::JavaObjectExt::as_raw(this);
 
@@ -874,8 +882,8 @@ impl ClassInfo {
                 #deref_impl
 
                 #rust_method_type_name {
-                    #this: #this,
-                    #(#input_names: #input_names,)*
+                    #this: #this.into_op(),
+                    #(#input_names: #input_names.into_op(),)*
                     phantom: ::core::default::Default::default(),
                 }
             }
@@ -895,11 +903,13 @@ impl ClassInfo {
         let mut sig = Signature::new(&method.name, self.span, &self.generics)
             .with_internal_generics(&method.generics)?;
 
-        let input_traits: Vec<_> = method
+        let (input_traits, jvm_op_traits): (Vec<_>, Vec<_>) = method
             .argument_tys
             .iter()
-            .map(|ty| sig.input_trait(ty))
-            .collect::<Result<_, _>>()?;
+            .map(|ty| sig.input_and_jvm_op_traits(ty))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .unzip();
 
         let input_names: Vec<_> = (0..input_traits.len())
             .map(|i| Ident::new(&format!("a{i}"), self.span))
@@ -969,7 +979,7 @@ impl ClassInfo {
             impl<#(#method_struct_generics),*> ::core::marker::Copy
             for #rust_method_type_name<#(#method_struct_generics),*>
             where
-                #(#input_names: #input_traits,)*
+                #(#input_names: #jvm_op_traits,)*
                 #(#java_class_generics: duchess::JavaObject,)*
                 #(#sig_where_clauses,)*
             {
@@ -978,7 +988,7 @@ impl ClassInfo {
             impl<#(#method_struct_generics),*> ::core::clone::Clone
             for #rust_method_type_name<#(#method_struct_generics),*>
             where
-                #(#input_names: #input_traits,)*
+                #(#input_names: #jvm_op_traits,)*
                 #(#java_class_generics: duchess::JavaObject,)*
                 #(#sig_where_clauses,)*
             {
@@ -990,7 +1000,7 @@ impl ClassInfo {
             impl<#(#method_struct_generics),*> duchess::prelude::JvmOp
             for #rust_method_type_name<#(#method_struct_generics),*>
             where
-                #(#input_names: #input_traits,)*
+                #(#input_names: #jvm_op_traits,)*
                 #(#java_class_generics: duchess::JavaObject,)*
                 #(#sig_where_clauses,)*
             {
@@ -1060,7 +1070,7 @@ impl ClassInfo {
                 #deref_impl
 
                 #rust_method_type_name {
-                    #(#input_names: #input_names,)*
+                    #(#input_names: #input_names.into_op(),)*
                     phantom: ::core::default::Default::default(),
                 }
             }
@@ -1230,7 +1240,7 @@ impl ClassInfo {
                     let #input_name = self.#input_name.execute_with(jvm)?;
                 ),
                 NonRepeatingType::Ref(_) => quote_spanned!(self.span =>
-                    let #input_name = self.#input_name.into_java(jvm)?;
+                    let #input_name = self.#input_name.into_as_jref(jvm)?;
                     let #input_name = duchess::prelude::AsJRef::as_jref(&#input_name)?;
                 ),
             })
