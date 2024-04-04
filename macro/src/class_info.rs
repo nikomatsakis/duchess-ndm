@@ -1,8 +1,10 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use inflector::Inflector;
+use noak::writer::{Class, Insertable};
 use proc_macro2::{Delimiter, Ident, Span, TokenStream, TokenTree};
 use quote::quote_spanned;
+use syn::spanned::Spanned;
 
 use crate::{
     parse::{Parse, TextAccum},
@@ -396,6 +398,12 @@ impl From<ClassRef> for Type {
     }
 }
 
+impl From<ScalarType> for Type {
+    fn from(value: ScalarType) -> Self {
+        Type::Scalar(value)
+    }
+}
+
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -536,9 +544,9 @@ pub struct Id {
 }
 
 impl std::ops::Deref for Id {
-    type Target = String;
+    type Target = str;
 
-    fn deref(&self) -> &String {
+    fn deref(&self) -> &str {
         &self.data
     }
 }

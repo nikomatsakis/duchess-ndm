@@ -14,10 +14,10 @@ public class Dummy implements Callback {
         });
     }
 
-    native String getNameNative(long nativePointer, String input);
+    native String getNameNative(String input, long nativePointer);
 
     public String getName(String input) {
-        return this.getNameNative(nativePointer, input);
+        return this.getNameNative(input, nativePointer);
     }
 
     native static void drop(long nativePointer);

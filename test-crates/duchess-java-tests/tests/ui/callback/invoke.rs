@@ -51,8 +51,8 @@ impl duchess::JvmOp for ToJavaInterface {
 #[duchess::java_function(callback.Dummy::getNameNative)]
 fn get_name_native(
     _this: &callback::Dummy,
-    native_pointer: i64,
     name: &java::lang::String,
+    native_pointer: i64,
 ) -> duchess::GlobalResult<String> {
     let native_pointer: *mut Callback = native_pointer as usize as *mut Callback;
     let callback = unsafe { &*native_pointer };

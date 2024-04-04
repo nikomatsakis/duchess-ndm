@@ -11,6 +11,7 @@ mod derive;
 mod java_function;
 mod parse;
 mod reflect;
+mod shim;
 mod signature;
 mod substitution;
 mod upcasts;
