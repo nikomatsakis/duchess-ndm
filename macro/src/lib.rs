@@ -1,4 +1,5 @@
-use argument::{DuchessDeclaration, MethodSelector};
+use argument::{DuchessDeclaration, JavaPath, MethodSelector};
+use impl_java_interface::impl_java_interface;
 use parse::Parser;
 use proc_macro::TokenStream;
 use rust_format::Formatter;
@@ -8,10 +9,10 @@ mod check;
 mod class_info;
 mod codegen;
 mod derive;
+mod impl_java_interface;
 mod java_function;
 mod parse;
 mod reflect;
-mod shim;
 mod signature;
 mod substitution;
 mod upcasts;
@@ -56,6 +57,24 @@ pub fn java_function(args: TokenStream, input: TokenStream) -> TokenStream {
     };
 
     match java_function::java_function(args, item_fn) {
+        Ok(t) => t.into(),
+        Err(err) => err.into_compile_error().into(),
+    }
+}
+
+#[proc_macro_attribute]
+pub fn impl_java_interface(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args: proc_macro2::TokenStream = args.into();
+    if let Some(arg) = args.clone().into_iter().next() {
+        return syn::Error::new(arg.span(), "no arguments expected").into(),
+    }
+
+    let item_impl = match syn::parse::<syn::ItemImpl>(input) {
+        Ok(item_impl) => item_impl,
+        Err(err) => return err.into_compile_error().into(),
+    };
+
+    match impl_java_interface::impl_java_interface(&item_impl) {
         Ok(t) => t.into(),
         Err(err) => err.into_compile_error().into(),
     }

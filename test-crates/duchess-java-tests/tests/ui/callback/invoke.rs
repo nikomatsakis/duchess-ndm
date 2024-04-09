@@ -22,6 +22,17 @@ impl Drop for Callback {
     }
 }
 
+#[duchess::impl_java_interface(callback.Callback)]
+impl JavaInterface for ToJavaInterface {
+    fn get_name(
+        &self,
+        name: &java::lang::String,
+    ) -> duchess::GlobalResult<String> {
+        let name: String = name.to_rust().execute()?;
+        Ok(format!("{name} {}", self.last_name))
+    }
+}
+
 #[derive(Clone)]
 pub struct ToJavaInterface {
     cb: Arc<Callback>,

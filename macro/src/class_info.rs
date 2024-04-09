@@ -1,10 +1,8 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use inflector::Inflector;
-use noak::writer::{Class, Insertable};
 use proc_macro2::{Delimiter, Ident, Span, TokenStream, TokenTree};
 use quote::quote_spanned;
-use syn::spanned::Spanned;
 
 use crate::{
     parse::{Parse, TextAccum},
@@ -320,13 +318,17 @@ impl Method {
     }
 
     pub fn descriptor(&self) -> String {
+        Self::descriptor_from_types(&self.argument_tys, &self.return_ty)
+    }
+
+    pub fn descriptor_from_types(argument_tys: &[Type], return_ty: &Option<Type>) -> String {
         format!(
             "({}){}",
-            self.argument_tys
+            argument_tys
                 .iter()
                 .map(|a| a.descriptor())
                 .collect::<String>(),
-            self.return_ty
+            return_ty
                 .as_ref()
                 .map(|r| r.descriptor())
                 .unwrap_or_else(|| format!("V")),
@@ -458,16 +460,7 @@ impl NonRepeatingType {
                 | RefType::Super(_)
                 | RefType::Wildcard => format!("Ljava/lang/Object;"),
             },
-            NonRepeatingType::Scalar(s) => match s {
-                ScalarType::Int => format!("I"),
-                ScalarType::Long => format!("J"),
-                ScalarType::Short => format!("S"),
-                ScalarType::Byte => format!("B"),
-                ScalarType::F64 => format!("D"),
-                ScalarType::F32 => format!("F"),
-                ScalarType::Boolean => format!("Z"),
-                ScalarType::Char => format!("C"),
-            },
+            NonRepeatingType::Scalar(s) => s.descriptor().to_string(),
         }
     }
 }
@@ -533,6 +526,19 @@ impl ScalarType {
             ScalarType::F64 => quote_spanned!(span => f64),
             ScalarType::F32 => quote_spanned!(span => f32),
             ScalarType::Boolean => quote_spanned!(span => bool),
+        }
+    }
+
+    pub fn descriptor(&self) -> &'static str {
+        match self {
+            ScalarType::Int => "I",
+            ScalarType::Long => "J",
+            ScalarType::Short => "S",
+            ScalarType::Byte => "B",
+            ScalarType::F64 => "D",
+            ScalarType::F32 => "F",
+            ScalarType::Boolean => "Z",
+            ScalarType::Char => "C",
         }
     }
 }
@@ -628,6 +634,10 @@ impl DotId {
         }
     }
 
+    pub fn duchess() -> Self {
+        Self::parse("duchess")
+    }
+
     pub fn object() -> Self {
         Self::parse("java.lang.Object")
     }
@@ -707,4 +717,5 @@ impl std::fmt::Display for DotId {
     }
 }
 
+mod from_syn;
 mod javap;

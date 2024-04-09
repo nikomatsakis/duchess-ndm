@@ -345,6 +345,7 @@ impl Signature {
         }
     }
 
+    /// Given a java type, returns the Rust type that it will be reflected as
     pub fn class_ref_ty(&mut self, ty: &ClassRef) -> syn::Result<TokenStream> {
         let ClassRef { name, generics } = ty;
         let rust_name = name.to_module_name(self.span);

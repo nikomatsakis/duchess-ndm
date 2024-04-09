@@ -2,6 +2,7 @@
 
 mod array;
 mod cast;
+mod class_definition;
 mod error;
 mod find;
 mod from_ref;
@@ -23,6 +24,7 @@ mod try_catch;
 /// Contains reusable declarations for classes distributed by the JDK under the `java.*` packages.
 pub mod java;
 
+pub use class_definition::ClassDefinition;
 pub use duchess_macro::{java_function, java_package, ToJava, ToRust};
 pub use error::{Error, GlobalResult, Result};
 pub use into_rust::IntoRust;
