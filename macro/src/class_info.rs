@@ -571,6 +571,14 @@ impl From<&str> for Id {
     }
 }
 
+impl From<&Ident> for Id {
+    fn from(value: &Ident) -> Self {
+        Id {
+            data: value.to_string(),
+        }
+    }
+}
+
 impl Id {
     pub fn dot(self, s: &str) -> DotId {
         DotId::from(self).dot(s)
@@ -680,13 +688,23 @@ impl DotId {
         (package, name)
     }
 
-    /// Returns a name like `java/lang/Object`
-    pub fn to_jni_name(&self) -> String {
+    /// Create a string-ified version of this name with `sep` in between each component.
+    fn with_sep(&self, sep: &str) -> String {
         self.ids
             .iter()
             .map(|id| &id[..])
             .collect::<Vec<_>>()
-            .join("/")
+            .join(sep)
+    }
+
+    /// Returns a name like `java/lang/Object`
+    pub fn to_jni_name(&self) -> String {
+        self.with_sep("/")
+    }
+
+    /// Returns a name like `java$lang$Object`
+    pub fn to_dollar_name(&self) -> String {
+        self.with_sep("$")
     }
 
     /// Returns a token stream like `java::lang::Object`

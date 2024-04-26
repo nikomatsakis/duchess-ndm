@@ -1,61 +1,64 @@
 use std::error::Error;
 
 use noak::{
-    writer::{
-        attributes::code::InstructionWriter, ClassWriter, EncoderContext, FieldRef, MethodRef,
-    },
+    writer::{attributes::code::InstructionWriter, EncoderContext, FieldRef, MethodRef},
     AccessFlags, Version,
 };
-use proc_macro2::{Literal, Span, TokenStream};
-use quote::quote_spanned;
+use proc_macro2::Span;
 use syn::spanned::Spanned;
 
-use crate::{
-    argument::JavaPath,
+use crate::
     class_info::{
         ClassInfo,
         ClassKind::{Class, Interface},
         DotId, Id, Method, ScalarType, Type,
-    },
-    re≥flect::Reflector,
-};
+    }
+;
 
-pub fn generate_interface_shim(class: &ClassInfo) -> syn::Result<Vec<u8>> {
-    match class.kind {
+/// Given the name of a Java interface, returns the bytecode for
+/// a class that implements this interface. The class will have a constructor
+/// with a single argument of type `long` that should be a pointer to a `Box<T>`.
+/// Each method `m` in the interface will invoke a native method `native$m` that
+/// indirects to Rust.
+pub fn generate_interface_shim(interface: &ClassInfo) -> syn::Result<(DotId, Vec<u8>)> {
+    match interface.kind {
         Class => {
             return Err(syn::Error::new(
                 Span::call_site(),
-                format!("cannot generate interface shim for class `{}`", class.name),
+                format!(
+                    "cannot generate interface shim for class `{}`",
+                    interface.name
+                ),
             ));
         }
 
         Interface => { /* OK */ }
     }
 
-    if let Some(first) = class.extends.first() {
+    if let Some(first) = interface.extends.first() {
         return Err(syn::Error::new(
             Span::call_site(),
             format!(
                 "cannot generate interface shim for class `{}` because it extends `{}`",
-                class.name, first,
+                interface.name, first,
             ),
         ));
     }
 
-    for method in &class.methods {
+    for method in &interface.methods {
         if !method.generics.is_empty() {
             return Err(syn::Error::new(
                 Span::call_site(),
                 format!(
                     "cannot generate interface shim for class `{}` because method `{}` has generics", 
-                    class.name,
+                    interface.name,
                     method.name,
                 ),
             ));
         }
     }
 
-    let class_name = DotId::duchess().dot("Dummy");
+    let class_name = DotId::duchess().dot(&format!("Impl${}", interface.name.to_dollar_name()));
     let native_pointer_field = ("nativePointer", ScalarType::Long.descriptor());
     let build_class = || -> Result<Vec<u8>, noak::error::EncodeError> {
         noak::writer::ClassWriter::new()
@@ -64,7 +67,7 @@ pub fn generate_interface_shim(class: &ClassInfo) -> syn::Result<Vec<u8>> {
             .this_class(&**class_name.class_name())?
             .super_class(&*DotId::object().to_jni_name())?
             .interfaces(|b| {
-                b.begin(|w| w.interface(&*class.name.to_jni_name()))?;
+                b.begin(|w| w.interface(&*interface.name.to_jni_name()))?;
                 Ok(())
             })?
             .fields(|b| {
@@ -72,7 +75,7 @@ pub fn generate_interface_shim(class: &ClassInfo) -> syn::Result<Vec<u8>> {
                     w.access_flags(AccessFlags::empty())?
                         .name("nativePointer")?
                         .descriptor(ScalarType::Long.descriptor())? // long
-                        .attributes(|w| Ok(()))
+                        .attributes(|_w| Ok(()))
                 })?;
                 Ok(())
             })?
@@ -113,7 +116,7 @@ pub fn generate_interface_shim(class: &ClassInfo) -> syn::Result<Vec<u8>> {
                         })
                 })?;
 
-                for method in &class.methods {
+                for method in &interface.methods {
                     // Given a method like
                     //
                     //    Type method(Arg1 arg1, Arg2 arg2)
@@ -173,9 +176,9 @@ pub fn generate_interface_shim(class: &ClassInfo) -> syn::Result<Vec<u8>> {
             .attributes(|_b| Ok(()))?
             .into_bytes()
     };
-    let builder = build_class().map_err(ErrorAt::span(class.span))?;
+    let bytes = build_class().map_err(ErrorAt::span(interface.span))?;
 
-    Ok(builder)
+    Ok((class_name, bytes))
 }
 
 trait ExtTrait {

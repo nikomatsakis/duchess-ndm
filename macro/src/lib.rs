@@ -1,5 +1,4 @@
 use argument::{DuchessDeclaration, JavaPath, MethodSelector};
-use impl_java_interface::impl_java_interface;
 use parse::Parser;
 use proc_macro::TokenStream;
 use rust_format::Formatter;
@@ -65,16 +64,17 @@ pub fn java_function(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn impl_java_interface(args: TokenStream, input: TokenStream) -> TokenStream {
     let args: proc_macro2::TokenStream = args.into();
-    if let Some(arg) = args.clone().into_iter().next() {
-        return syn::Error::new(arg.span(), "no arguments expected").into(),
-    }
-
-    let item_impl = match syn::parse::<syn::ItemImpl>(input) {
-        Ok(item_impl) => item_impl,
-        Err(err) => return err.into_compile_error().into(),
+    let no_args = match args.clone().into_iter().next() {
+        Some(arg) => Err(syn::Error::new(arg.span(), "no arguments expected")),
+        None => Ok(()),
     };
 
-    match impl_java_interface::impl_java_interface(&item_impl) {
+    let result = no_args.and_then(|()| {
+        let item_impl = syn::parse::<syn::ItemImpl>(input)?;
+        impl_java_interface::impl_java_interface(&item_impl)
+    });
+
+    match result {
         Ok(t) => t.into(),
         Err(err) => err.into_compile_error().into(),
     }

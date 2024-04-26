@@ -1,6 +1,6 @@
-use syn::{spanned::Spanned, AngleBracketedGenericArguments, PathArguments};
+use syn::{spanned::Spanned, PathArguments};
 
-use super::{ClassRef, DotId, ScalarType, Type};
+use super::{ClassRef, DotId, Id, RefType};
 
 impl ClassRef {
     /// Convert a Rust path (parsed with syn) into a Java path.
@@ -39,7 +39,7 @@ impl ClassRef {
                     }
 
                     for arg in &args.args {
-                        let ty = super::RefType::TypeParameterType::from(generis, arg)?;
+                        let ty = super::RefType::from(generics, arg)?;
                         types.push(ty);
                     }
                 }
@@ -47,7 +47,7 @@ impl ClassRef {
         }
 
         Ok(ClassRef {
-            name: DotId::from_iter(names),
+            name: DotId::from_iter(names.iter().map(|ident| Id::from(ident))),
             generics: types,
         })
     }
@@ -59,16 +59,16 @@ impl RefType {
         if let syn::GenericArgument::Type(ty) = arg {
             if let syn::Type::Path(syn::TypePath { qself, path }) = ty {
                 if let Some(q) = qself {
-                    return Err(syn::Error::new(q.span(), "no qualified paths"));
+                    return Err(syn::Error::new(q.lt_token.span(), "no qualified paths"));
                 }
 
                 for generic in generics.type_params() {
                     if path.is_ident(&generic.ident) {
-                        return Ok(Type::RefType::TypeParameter(generic.ident.to_string()));
+                        return Ok(RefType::TypeParameter(Id::from(&generic.ident)));
                     }
                 }
 
-                Ok(ClassRef::from(generics, path)?)
+                Ok(RefType::Class(ClassRef::from(generics, path)?))
             } else {
                 Err(syn::Error::new(arg.span(), "only paths accepted"))
             }

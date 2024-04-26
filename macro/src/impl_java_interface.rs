@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
-use proc_macro2::{Literal, TokenStream};
+use proc_macro2::{Literal, Span, TokenStream};
 use quote::quote;
 use syn::{spanned::Spanned, Generics};
 
 use crate::{
-    argument::JavaPath,
-    class_info::{ClassInfo, ClassRef, Method, Type},
+    class_info::{ClassInfo, ClassRef, Method, ScalarType},
     reflect::Reflector,
     signature::Signature,
 };
@@ -15,9 +14,11 @@ mod shim;
 
 pub fn impl_java_interface(item_impl: &syn::ItemImpl) -> syn::Result<TokenStream> {
     let reflector = &mut Reflector::default();
-    let java_interface = JavaInterface::new(item_impl, &mut reflector)?;
+    let mut java_interface = JavaInterface::new(item_impl, reflector)?;
+    let jvmop_impl = java_interface.generate_jvmop_impl()?;
     Ok(quote! {
         const _: () = {
+            #jvmop_impl
         };
     })
 }
@@ -79,7 +80,8 @@ impl<'me> JavaInterface<'me> {
     }
 
     fn generate_jvmop_impl(&mut self) -> syn::Result<TokenStream> {
-        let bytes = shim::generate_interface_shim(&self.class)?;
+        // Generate the bytecode for a shim class that implements the interface via native methods.
+        let (_shim_name, bytes) = shim::generate_interface_shim(&self.class)?;
         let byte_literals: Vec<_> = bytes.iter().map(|b| Literal::u8_unsuffixed(*b)).collect();
 
         let syn::ItemImpl {
@@ -110,7 +112,7 @@ impl<'me> JavaInterface<'me> {
 
         let ctor_descriptor = Literal::string(&Method::descriptor_from_types(
             &[ScalarType::Long.into()],
-            None,
+            &None,
         ));
 
         Ok(quote!(
@@ -119,7 +121,7 @@ impl<'me> JavaInterface<'me> {
                 #lt_token
                 #params
                 #gt_token
-            duchess::JvmOp for $self_ty
+            duchess::JvmOp for #self_ty
                 #where_clause
             {
                 type Output<'jvm> = duchess::Local<'jvm, #interface_ty>;
@@ -128,46 +130,83 @@ impl<'me> JavaInterface<'me> {
                     self,
                     jvm: &mut duchess::Jvm<'jvm>,
                 ) -> duchess::Result<'jvm, Self::Output<'jvm>> {
+                    // Lazilly (and at most once) load the shim class definition into the JVM.
                     const CLASS_DEFINITION: duchess::ClassDefinition = duchess::ClassDefinition::new_const(
                         #interface_jni,
                         &[#(#byte_literals,)*]
                     );
-
                     static CLASS: duchess::plumbing::once_cell::sync::OnceCell<duchess::Global<java::lang::Class>> = duchess::plumbing::once_cell::sync::OnceCell::new();
                     let class_global = CLASS.get_or_try_init::<_, duchess::Error<duchess::Local<java::lang::Throwable>>>(|| {
                         let class = jvm.define_class(&CLASS_DEFINITION)?;
                         Ok(jvm.global(&class))
                     })?;
-
                     static CONSTRUCTOR: duchess::plumbing::once_cell::sync::OnceCell<duchess::plumbing::MethodPtr> = duchess::plumbing::once_cell::sync::OnceCell::new();
                     let constructor = CONSTRUCTOR.get_or_try_init(|| {
                         let ctor_descriptor = CString::new(#ctor_descriptor).unwrap();
                         duchess::plumbing::find_constructor(jvm, &class_global, &ctor_descriptor)
                     })?;
 
+                    // Move `self` into an `Arc`. The `DeferDrop` holds a handle
+                    // (converted to a raw pointer) to this `Arc`. If all goes well,
+                    // ownership of that handle will transfer into the Java object.
+                    struct DeferDrop {
+                        value: *const #self_ty
+                    }
+                    impl DeferDrop {
+                        fn free_arc(value: *const #self_ty) {
+                            unsafe {
+                                std::mem::drop(Arc::from_raw(self.value));
+                            }
+                        }
+                    }
+                    impl Drop for DeferDrop {
+                        fn drop(&mut self) {
+                            Self::free_arc(self.value)
+                        }
+                    }
+                    let this = Arc::new(self);
+                    let this = DeferDrop { value: Arc::into_raw(this) };
+
+                    // Invoke the constructor of the shim class.
                     let env = jvm.env();
-                    let obj: ::core::option::Option<duchess::Local<#ty>> = unsafe {
+                    let obj: duchess::Result<'_, ::core::option::Option<duchess::Local<#interface_ty>>> = unsafe {
+                        // The constructor expects one argument: the raw pointer to the arc as a Java long
+                        let this_long = this_drop.value as usize as i64;
+
                         env.invoke(|env| env.NewObjectA, |env, f| f(
                             env,
-                            duchess::plumbing::JavaObjectExt::as_raw(&*class).as_ptr(),
+                            duchess::plumbing::JavaObjectExt::as_raw(&*class_global).as_ptr(),
                             constructor.as_ptr(),
                             [
-                                #(duchess::plumbing::IntoJniValue::into_jni_value(#input_names),)*
+                                duchess::plumbing::IntoJniValue::into_jni_value(this_long),
                             ].as_ptr(),
                         ))
-                    }?;
-                    obj.ok_or_else(|| {
-                        // NewObjectA should only return a null pointer when an exception occurred in the
-                        // constructor, so reaching here is a strange JVM state
-                        duchess::Error::JvmInternal(format!(
-                            "failed to create new `{}` via constructor `{}`",
-                            #name, #descriptor,
-                        ))
-                    })
+                    };
 
-                    let value = self.cb.clone();
-                    let value_long: i64 = Arc::into_raw(value) as usize as i64;
-                    callback::Dummy::new(value_long).execute_with(jvm)
+                    // Check the result.
+                    match obj {
+                        Ok(Some(v)) => {
+                            // The Java object was successfully created, we can "forget" our handle
+                            // to `this_drop` now. When the java object is collected by the GC, it will
+                            // trigger a callback to free the code.
+                            std::mem::forget(this_drop);
+                            Ok(v)
+                        }
+
+                        Ok(None) => {
+                            // NewObjectA should only return a null pointer when an exception occurred in the
+                            // constructor, so reaching here is a strange JVM state
+                            duchess::Error::JvmInternal(format!(
+                                "failed to create new shim for `{}`",
+                                #interface_jni,
+                            ))
+                        }
+
+                        Err(err) => {
+                            // Internal JVM error
+                            Err(err)
+                        }
+                    }
                 }
             }
         ))
