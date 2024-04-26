@@ -6,16 +6,59 @@ use syn::{spanned::Spanned, Generics};
 
 use crate::{
     class_info::{ClassInfo, ClassRef, Method, ScalarType},
+    java_function,
     reflect::Reflector,
     signature::Signature,
 };
 
 mod shim;
 
+/// See [`crate::impl_java_interface`][] for user docs.
+///
+/// For this example:
+///
+/// ```rust
+/// struct Buffer {
+///     chars: Vec<Char>
+/// }
+///
+/// #[impl_java_interface]
+/// impl java::lang::Readable for Buffer {
+///     fn read(&self, cb: &java::nio::CharBuffer) -> duchess::GlobalResult<i32> {
+///         for &ch in &self.chars {
+///             cb.put(ch).execute();
+///         }
+///     }
+/// }
+/// ```
+///
+/// we will generate roughly the following
+///
+/// ```rust
+/// const _: () = {
+///     impl JvmOp for Buffer {
+///                 // ------ the Rust type that is implementing the interface
+///         type Output<'jvm> = Local<'jvm, java::lang::Readable>;
+///                             //          -------------------- the java interface we are implementing
+///         fn execute_with(jvm: &mut Jvm<'_>) -> duchess::Result<'_, > {
+///             // Code to
+///             // - lazilly create shim class definition
+///             // - link the shim class methods (e.g., `read`) to the jvm
+///             // - create and return the Java object owning the Rust `Buffer`
+///         }
+///     }
+///
+///     #[java_function] // <-- we don't iterally generate this, but we generate the expansion of it
+///     fn read(&self, cb: &java::nio::CharBuffer) -> duchess::GlobalResult<i32> {
+///         /*  */
+///     }
+/// };
+/// ```
 pub fn impl_java_interface(item_impl: &syn::ItemImpl) -> syn::Result<TokenStream> {
     let reflector = &mut Reflector::default();
     let mut java_interface = JavaInterface::new(item_impl, reflector)?;
     let jvmop_impl = java_interface.generate_jvmop_impl()?;
+
     Ok(quote! {
         const _: () = {
             #jvmop_impl
@@ -210,6 +253,106 @@ impl<'me> JavaInterface<'me> {
                 }
             }
         ))
+    }
+
+    /// generates the native methods for each item in the interface, e.g., roughly...
+    ///
+    /// ```rust
+    /// #[java_function] // <-- we don't iterally generate this, but we generate the expansion of it
+    /// fn read(&self, cb: &java::nio::CharBuffer) -> duchess::GlobalResult<i32> {
+    ///     /*  */
+    /// }
+    /// ```
+    fn native_methods(&mut self) -> syn::Result<TokenStream> {
+        let mut output = TokenStream::default();
+        for item in &self.item_impl.items {
+            if let syn::ImplItem::Fn(syn::ImplItemFn {
+                attrs,
+                vis,
+                defaultness,
+                sig:
+                    sig @ syn::Signature {
+                        constness: None,
+                        asyncness: None,
+                        unsafety: None,
+                        abi: None,
+                        fn_token,
+                        ident,
+                        generics,
+                        paren_token,
+                        inputs,
+                        variadic: None,
+                        output,
+                    },
+                block,
+            }) = item
+            {
+                self.check_method_sig(sig)?;
+
+                java_function::java_function(
+                    x,
+                    syn::ItemFn {
+                        attrs: attrs.clone(),
+                        vis: syn::Visibility::Inherited,
+                        sig: syn::Signature {
+                            constness: None,
+                            asyncness: None,
+                            unsafety: None,
+                            abi: None,
+                            fn_token: fn_token.clone(),
+                            ident: ident.clone(),
+                            generics: generics.clone(),
+                            paren_token: paren_token.clone(),
+                            inputs: inputs.clone(),
+                            variadic: None,
+                            output: output.clone(),
+                        },
+                        block: block.clone(),
+                    },
+                );
+            } else {
+                return Err(syn::Error::new(
+                    item.span(),
+                    "unexpected impl item, only `fn` are permitted",
+                ));
+            }
+        }
+        Ok(output)
+    }
+
+    fn check_method_sig(&self, sig: &syn::Signature) -> syn::Result<()> {
+        let syn::Signature {
+            constness,
+            asyncness,
+            unsafety,
+            abi,
+            fn_token,
+            ident,
+            generics,
+            paren_token,
+            inputs,
+            variadic,
+            output,
+        } = sig;
+
+        self.forbid_some(constness)?;
+        self.forbid_some(asyncness)?;
+        self.forbid_some(unsafety)?;
+        self.forbid_some(abi)?;
+        self.forbid_some(variadic)?;
+
+        Ok(())
+    }
+
+    fn forbid_some<S>(&self, o: &Option<S>) -> syn::Result<()>
+    where
+        S: Spanned,
+    {
+        if let Some(o) = o {
+            Err(syn::Error::new(o.span(), "unexpected declaration"))
+        } else {
+            Ok(())
+        }
     }
 
     // #[duchess::java_function(callback.Dummy::getNameNative)]

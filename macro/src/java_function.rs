@@ -159,7 +159,9 @@ fn reflected_method(
 }
 
 struct Driver<'a> {
-    selector: &'a MethodSelector,
+    span: Span,
+    class_name: &'a DotId,
+    method_name: &'a str
     class_info: &'a ClassInfo,
     method_info: &'a Method,
     input: &'a syn::ItemFn,
@@ -181,20 +183,18 @@ impl Driver<'_> {
         //
         // * If the native method is overloaded (but only if it is), then the symbol name should include
         //   the descriptor.
-        let class_name = self.selector.class_name();
-        let (package, class) = class_name.split();
-        let method_name = self.selector.method_name();
+        let (package, class) = self.class_name.split();
         let symbol_name: String = once("Java")
             .chain(package.iter().map(|id| &id[..]))
             .chain(once(&class[..]))
-            .chain(once(&method_name[..]))
+            .chain(once(&self.method_name))
             .collect::<Vec<_>>()
             .join("_");
-        syn::Ident::new(&symbol_name, self.selector.span())
+        syn::Ident::new(&symbol_name, self.span)
     }
 
     fn default_arguments(&self) -> syn::Result<(Argument, Argument)> {
-        let span = self.selector.span();
+        let span = self.span;
 
         let env_arg = Argument {
             name: syn::Ident::new("jni_env", span),
@@ -219,14 +219,14 @@ impl Driver<'_> {
     fn convert_ty(&self, ty: &Type) -> syn::Result<TokenStream> {
         Ok(Signature::new(
             &self.method_info.name,
-            self.selector.span(),
+            self.span,
             &self.class_info.generics,
         )
         .forbid_capture(|sig| sig.java_ty(ty))?)
     }
 
     fn user_arguments(&self) -> syn::Result<Vec<Argument>> {
-        let span = self.selector.span();
+        let span = self.span;
         let mut arguments = vec![];
 
         for (argument_ty, index) in self.method_info.argument_tys.iter().zip(0..) {
@@ -369,7 +369,7 @@ impl Driver<'_> {
         return_expr: TokenStream,
         env_name: &Ident,
     ) -> syn::Result<(TokenStream, TokenStream)> {
-        let span = self.selector.span();
+        let span = self.span;
         match &self.method_info.return_ty {
             Some(ty) => match ty {
                 class_info::Type::Scalar(ty) => Ok((

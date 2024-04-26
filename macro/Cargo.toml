@@ -24,6 +24,7 @@ synstructure = "0.13.0"
 syn = "2.0.15"
 derive-where = "1.2.1"
 noak = "0.6.0"
+prettyplease = "0.2.19"
 
 [build-dependencies]
 lalrpop = "0.19.9"

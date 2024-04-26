@@ -1,19 +1,21 @@
 use std::error::Error;
 
 use noak::{
+    descriptor::MethodDescriptor,
     writer::{attributes::code::InstructionWriter, EncoderContext, FieldRef, MethodRef},
     AccessFlags, Version,
 };
 use proc_macro2::Span;
 use syn::spanned::Spanned;
 
-use crate::
+use crate::{
+    argument::MethodSelector,
     class_info::{
         ClassInfo,
         ClassKind::{Class, Interface},
         DotId, Id, Method, ScalarType, Type,
-    }
-;
+    },
+};
 
 /// Given the name of a Java interface, returns the bytecode for
 /// a class that implements this interface. The class will have a constructor
@@ -58,6 +60,7 @@ pub fn generate_interface_shim(interface: &ClassInfo) -> syn::Result<(DotId, Vec
         }
     }
 
+    let mut native_method_descriptors = HashMap::new();
     let class_name = DotId::duchess().dot(&format!("Impl${}", interface.name.to_dollar_name()));
     let native_pointer_field = ("nativePointer", ScalarType::Long.descriptor());
     let build_class = || -> Result<Vec<u8>, noak::error::EncodeError> {
@@ -116,7 +119,7 @@ pub fn generate_interface_shim(interface: &ClassInfo) -> syn::Result<(DotId, Vec
                         })
                 })?;
 
-                for method in &interface.methods {
+                for (method, method_index) in interface.methods.iter().zip(0..) {
                     // Given a method like
                     //
                     //    Type method(Arg1 arg1, Arg2 arg2)
@@ -124,10 +127,13 @@ pub fn generate_interface_shim(interface: &ClassInfo) -> syn::Result<(DotId, Vec
                     b.begin(|w| {
                         // Generate a "native version" of the method
                         //
-                        //    native Type method(long dataPointer, Arg1 arg1, Arg2 arg2)
+                        //    native Type native$method(long dataPointer, Arg1 arg1, Arg2 arg2)
                         let mut native_method = method.clone();
                         native_method.name = Id::from(format!("native${}", method.name));
                         native_method.argument_tys.push(ScalarType::Long.into());
+
+                        native_method_descriptors.insert(method.name, method_index);
+
                         w.access_flags(AccessFlags::NATIVE)?
                             .name(&*native_method.name)?
                             .descriptor(&*native_method.descriptor())?
@@ -136,7 +142,9 @@ pub fn generate_interface_shim(interface: &ClassInfo) -> syn::Result<(DotId, Vec
                     .begin(|w| {
                         // Generate the method itself
                         //
-                        //    native Type method(long dataPointer, Arg1 arg1, Arg2 arg2)
+                        // Type method(long dataPointer, Arg1 arg1, Arg2 arg2) {
+                        //     this.native$method(dataPointer, arg1, arg2)
+                        // }
                         let num_args = u16::try_from(method.argument_tys.len()).unwrap();
                         w.access_flags(AccessFlags::empty())?
                             .name(&*method.name)?

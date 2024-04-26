@@ -61,6 +61,28 @@ pub fn java_function(args: TokenStream, input: TokenStream) -> TokenStream {
     }
 }
 
+/// Implement a Java interface for a Rust type.
+///
+/// # Example
+///
+/// Here is an example of implement the `java::lang::Readable`
+/// trait for a Rust type `Buffer`.
+///
+///
+/// ```rust
+/// struct Buffer {
+///     chars: Vec<Char>
+/// }
+///
+/// #[impl_java_interface]
+/// impl java::lang::Readable for Buffer {
+///     fn read(&self, cb: &java::nio::CharBuffer) -> duchess::GlobalResult<i32> {
+///         for &ch in &self.chars {
+///             cb.put(ch).execute();
+///         }
+///     }
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn impl_java_interface(args: TokenStream, input: TokenStream) -> TokenStream {
     let args: proc_macro2::TokenStream = args.into();
@@ -75,7 +97,10 @@ pub fn impl_java_interface(args: TokenStream, input: TokenStream) -> TokenStream
     });
 
     match result {
-        Ok(t) => t.into(),
+        Ok(t) => {
+            debug_tokens("impl_java_interface", &t);
+            t.into()
+        }
         Err(err) => err.into_compile_error().into(),
     }
 }
