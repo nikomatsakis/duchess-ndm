@@ -11,6 +11,8 @@ use crate::{
     signature::Signature,
 };
 
+use self::shim::NativeMethodNames;
+
 mod shim;
 
 /// See [`crate::impl_java_interface`][] for user docs.
@@ -124,7 +126,7 @@ impl<'me> JavaInterface<'me> {
 
     fn generate_jvmop_impl(&mut self) -> syn::Result<TokenStream> {
         // Generate the bytecode for a shim class that implements the interface via native methods.
-        let (_shim_name, bytes) = shim::generate_interface_shim(&self.class)?;
+        let (shim_name, native_method_names, bytes) = shim::generate_interface_shim(&self.class)?;
         let byte_literals: Vec<_> = bytes.iter().map(|b| Literal::u8_unsuffixed(*b)).collect();
 
         let syn::ItemImpl {
@@ -263,9 +265,12 @@ impl<'me> JavaInterface<'me> {
     ///     /*  */
     /// }
     /// ```
-    fn native_methods(&mut self) -> syn::Result<TokenStream> {
+    fn native_methods(&self, native_method_names: &NativeMethodNames) -> syn::Result<TokenStream> {
+        assert_eq!(self.item_impl.items.len(), native_method_names.names.len());
         let mut output = TokenStream::default();
-        for item in &self.item_impl.items {
+        for (item, native_method_name) in
+            self.item_impl.items.iter().zip(&native_method_names.names)
+        {
             if let syn::ImplItem::Fn(syn::ImplItemFn {
                 attrs,
                 vis,
@@ -290,7 +295,7 @@ impl<'me> JavaInterface<'me> {
                 self.check_method_sig(sig)?;
 
                 java_function::java_function(
-                    x,
+                    todo!(),
                     syn::ItemFn {
                         attrs: attrs.clone(),
                         vis: syn::Visibility::Inherited,
@@ -307,7 +312,7 @@ impl<'me> JavaInterface<'me> {
                             variadic: None,
                             output: output.clone(),
                         },
-                        block: block.clone(),
+                        block: Box::new(block.clone()),
                     },
                 );
             } else {

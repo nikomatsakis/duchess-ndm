@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{collections::HashMap, error::Error};
 
 use noak::{
     descriptor::MethodDescriptor,
@@ -17,12 +17,19 @@ use crate::{
     },
 };
 
+#[derive(Default)]
+pub(crate) struct NativeMethodNames {
+    pub names: Vec<Method>,
+}
+
 /// Given the name of a Java interface, returns the bytecode for
 /// a class that implements this interface. The class will have a constructor
 /// with a single argument of type `long` that should be a pointer to a `Box<T>`.
 /// Each method `m` in the interface will invoke a native method `native$m` that
 /// indirects to Rust.
-pub fn generate_interface_shim(interface: &ClassInfo) -> syn::Result<(DotId, Vec<u8>)> {
+pub fn generate_interface_shim(
+    interface: &ClassInfo,
+) -> syn::Result<(DotId, NativeMethodNames, Vec<u8>)> {
     match interface.kind {
         Class => {
             return Err(syn::Error::new(
@@ -60,10 +67,10 @@ pub fn generate_interface_shim(interface: &ClassInfo) -> syn::Result<(DotId, Vec
         }
     }
 
-    let mut native_method_descriptors = HashMap::new();
+    let mut native_method_names = NativeMethodNames::default();
     let class_name = DotId::duchess().dot(&format!("Impl${}", interface.name.to_dollar_name()));
     let native_pointer_field = ("nativePointer", ScalarType::Long.descriptor());
-    let build_class = || -> Result<Vec<u8>, noak::error::EncodeError> {
+    let mut build_class = || -> Result<Vec<u8>, noak::error::EncodeError> {
         noak::writer::ClassWriter::new()
             .version(Version::V15)?
             .access_flags(AccessFlags::STATIC | AccessFlags::FINAL)?
@@ -119,7 +126,7 @@ pub fn generate_interface_shim(interface: &ClassInfo) -> syn::Result<(DotId, Vec
                         })
                 })?;
 
-                for (method, method_index) in interface.methods.iter().zip(0..) {
+                for method in &interface.methods {
                     // Given a method like
                     //
                     //    Type method(Arg1 arg1, Arg2 arg2)
@@ -132,12 +139,15 @@ pub fn generate_interface_shim(interface: &ClassInfo) -> syn::Result<(DotId, Vec
                         native_method.name = Id::from(format!("native${}", method.name));
                         native_method.argument_tys.push(ScalarType::Long.into());
 
-                        native_method_descriptors.insert(method.name, method_index);
-
-                        w.access_flags(AccessFlags::NATIVE)?
+                        let result = w
+                            .access_flags(AccessFlags::NATIVE)?
                             .name(&*native_method.name)?
                             .descriptor(&*native_method.descriptor())?
-                            .attributes(|_b| Ok(()))
+                            .attributes(|_b| Ok(()));
+
+                        native_method_names.names.push(native_method);
+
+                        result
                     })?
                     .begin(|w| {
                         // Generate the method itself
@@ -186,7 +196,7 @@ pub fn generate_interface_shim(interface: &ClassInfo) -> syn::Result<(DotId, Vec
     };
     let bytes = build_class().map_err(ErrorAt::span(interface.span))?;
 
-    Ok((class_name, bytes))
+    Ok((class_name, native_method_names, bytes))
 }
 
 trait ExtTrait {

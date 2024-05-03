@@ -1,12 +1,12 @@
 use std::{iter::once, sync::Arc};
 
-use proc_macro2::{Ident, Literal, TokenStream};
+use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote_spanned;
 use syn::spanned::Spanned;
 
 use crate::{
     argument::MethodSelector,
-    class_info::{self, ClassInfo, Method, Type},
+    class_info::{self, ClassInfo, ClassRef, DotId, Method, Type},
     reflect::{MethodIndex, Reflector},
     signature::Signature,
 };
@@ -36,11 +36,12 @@ use crate::{
 pub fn java_function(selector: MethodSelector, input: syn::ItemFn) -> syn::Result<TokenStream> {
     let span = selector.span();
 
-    let mut reflector = Reflector::default();
-    let (class_info, method_index) = reflected_method(&selector, &mut reflector)?;
+    let (class_info, method_index) = reflected_method(&selector, &mut Reflector::default())?;
     let driver = Driver {
-        selector: &selector,
-        class_info: &class_info,
+        span: selector.span(),
+        this_ref: &class_info.this_ref().into(),
+        class_name: &selector.class_name(),
+        method_name: &selector.method_name(),
         method_info: &class_info.methods[method_index],
         input: &input,
     };
@@ -161,8 +162,8 @@ fn reflected_method(
 struct Driver<'a> {
     span: Span,
     class_name: &'a DotId,
-    method_name: &'a str
-    class_info: &'a ClassInfo,
+    this_ref: &Type,
+    method_name: &'a str,
     method_info: &'a Method,
     input: &'a syn::ItemFn,
 }
@@ -187,7 +188,7 @@ impl Driver<'_> {
         let symbol_name: String = once("Java")
             .chain(package.iter().map(|id| &id[..]))
             .chain(once(&class[..]))
-            .chain(once(&self.method_name))
+            .chain(once(self.method_name))
             .collect::<Vec<_>>()
             .join("_");
         syn::Ident::new(&symbol_name, self.span)
@@ -204,7 +205,7 @@ impl Driver<'_> {
         let this_ty = if self.method_info.flags.is_static {
             quote_spanned!(span => duchess::plumbing::jni_sys::jclass)
         } else {
-            let rust_this_ty = self.convert_ty(&self.class_info.this_ref().into())?;
+            let rust_this_ty = self.convert_ty(&self.this_ref.into())?;
             quote_spanned!(span => &#rust_this_ty)
         };
 
@@ -217,12 +218,10 @@ impl Driver<'_> {
     }
 
     fn convert_ty(&self, ty: &Type) -> syn::Result<TokenStream> {
-        Ok(Signature::new(
-            &self.method_info.name,
-            self.span,
-            &self.class_info.generics,
+        Ok(
+            Signature::new(&self.method_info.name, self.span, &self.class_info.generics)
+                .forbid_capture(|sig| sig.java_ty(ty))?,
         )
-        .forbid_capture(|sig| sig.java_ty(ty))?)
     }
 
     fn user_arguments(&self) -> syn::Result<Vec<Argument>> {
