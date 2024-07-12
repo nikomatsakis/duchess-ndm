@@ -1,12 +1,12 @@
 use std::{iter::once, sync::Arc};
 
-use proc_macro2::{Ident, Literal, TokenStream};
+use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote_spanned;
 use syn::spanned::Spanned;
 
 use crate::{
     argument::MethodSelector,
-    class_info::{self, ClassInfo, Method, Type},
+    class_info::{self, ClassInfo, ClassRef, DotId, Generic, Method, Type},
     reflect::{MethodIndex, Reflector},
     signature::Signature,
 };
@@ -36,11 +36,13 @@ use crate::{
 pub fn java_function(selector: MethodSelector, input: syn::ItemFn) -> syn::Result<TokenStream> {
     let span = selector.span();
 
-    let mut reflector = Reflector::default();
-    let (class_info, method_index) = reflected_method(&selector, &mut reflector)?;
+    let (class_info, method_index) = reflected_method(&selector, &mut Reflector::default())?;
     let driver = Driver {
-        selector: &selector,
-        class_info: &class_info,
+        span: selector.span(),
+        this_ref: &class_info.this_ref().into(),
+        class_name: &selector.class_name(),
+        class_generics: &class_info.generics,
+        method_name: &selector.method_name(),
         method_info: &class_info.methods[method_index],
         input: &input,
     };
@@ -163,8 +165,11 @@ fn reflected_method(
 }
 
 struct Driver<'a> {
-    selector: &'a MethodSelector,
-    class_info: &'a ClassInfo,
+    span: Span,
+    class_name: &'a DotId,
+    class_generics: &'a [Generic],
+    this_ref: &'a Type,
+    method_name: &'a str,
     method_info: &'a Method,
     input: &'a syn::ItemFn,
 }
@@ -210,21 +215,16 @@ impl Driver<'_> {
         // jstring Java_test_JavaCanCallRustJavaFunction_baseGreeting_f__ILjava_lang_String_2(jstring name) { ... }
         // jstring Java_test_JavaCanCallRustJavaFunction_baseGreeting_f__ILjava_lang_Object_2(jstring name) { ... }
         // jstring Java_test_JavaCanCallRustJavaFunction_baseGreeting_f__I_3java_lang_String_2(jstring name) { ... }
-        let class_name = self.selector.class_name();
-        let class = class_name.to_jni_class_name();
-        let package = class_name.to_jni_package();
-        let method_name = self.selector.method_name().replace("_", "_1");
-        let symbol_name: String = once("Java")
-            .chain(once(&package[..]))
-            .chain(once(&class[..]))
-            .chain(once(&method_name[..]))
-            .collect::<Vec<_>>()
-            .join("_");
-        syn::Ident::new(&symbol_name, self.selector.span())
+        let class_name = self.class_name;
+        let class = class_name.to_jni_class_name().replace("_", "_1");
+        let package = class_name.to_jni_package().replace("_", "_1");
+        let method_name = self.method_name.replace("_", "_1");
+        let symbol_name: String = format!("Java_{package}_{class}_{method_name}");
+        syn::Ident::new(&symbol_name, self.span)
     }
 
     fn default_arguments(&self) -> syn::Result<(Argument, Argument)> {
-        let span = self.selector.span();
+        let span = self.span;
 
         let env_arg = Argument {
             name: syn::Ident::new("jni_env", span),
@@ -234,7 +234,7 @@ impl Driver<'_> {
         let this_ty = if self.method_info.flags.is_static {
             quote_spanned!(span => duchess::plumbing::jni_sys::jclass)
         } else {
-            let rust_this_ty = self.convert_ty(&self.class_info.this_ref().into())?;
+            let rust_this_ty = self.convert_ty(&self.this_ref)?;
             quote_spanned!(span => &#rust_this_ty)
         };
 
@@ -247,16 +247,14 @@ impl Driver<'_> {
     }
 
     fn convert_ty(&self, ty: &Type) -> syn::Result<TokenStream> {
-        Ok(Signature::new(
-            &self.method_info.name,
-            self.selector.span(),
-            &self.class_info.generics,
+        Ok(
+            Signature::new(&self.method_info.name, self.span, &self.class_generics)
+                .forbid_capture(|sig| sig.java_ty(ty))?,
         )
-        .forbid_capture(|sig| sig.java_ty(ty))?)
     }
 
     fn user_arguments(&self) -> syn::Result<Vec<Argument>> {
-        let span = self.selector.span();
+        let span = self.span;
         let mut arguments = vec![];
 
         for (argument_ty, index) in self.method_info.argument_tys.iter().zip(0..) {
@@ -399,7 +397,7 @@ impl Driver<'_> {
         return_expr: TokenStream,
         env_name: &Ident,
     ) -> syn::Result<(TokenStream, TokenStream)> {
-        let span = self.selector.span();
+        let span = self.span;
         match &self.method_info.return_ty {
             Some(ty) => match ty {
                 class_info::Type::Scalar(ty) => Ok((

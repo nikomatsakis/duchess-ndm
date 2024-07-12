@@ -5,7 +5,7 @@
 //! The `'static` pointers generally rely on duchess not deinitializing a JVM after it's already initialized.
 
 use std::{
-    ffi::{self},
+    ffi::{self, CString},
     marker::PhantomData,
     mem::MaybeUninit,
     ptr::{self, NonNull},
@@ -13,7 +13,7 @@ use std::{
 
 use jni_sys::jvalue;
 
-use crate::{jvm::JavaObjectExt, Error, JavaObject, Local};
+use crate::{java, jvm::JavaObjectExt, Error, JavaObject, Local};
 
 const VERSION: jni_sys::jint = jni_sys::JNI_VERSION_1_8;
 
@@ -284,6 +284,34 @@ impl<'jvm> EnvPtr<'jvm> {
         let jvm_ptr = jvm_ptr.assume_init();
         assert!(!jvm_ptr.is_null());
         JvmPtr::new(jvm_ptr).ok_or(())
+    }
+
+    /// Loads classes from bytecode.
+    pub unsafe fn define_class(
+        self,
+        jni_class_name: &str,
+        bytecode: &[i8],
+    ) -> crate::LocalResult<'jvm, Local<'jvm, java::lang::Class>> {
+        let jni_class_name_cstr = CString::new(jni_class_name).unwrap();
+        let bytecode_ptr: *const i8 = bytecode.as_ptr();
+        let bytecode_len = bytecode.len() as i32;
+
+        let classobj: Option<Local<'_, java::lang::Class>> = self.invoke(
+            |f| f.DefineClass,
+            |env, define_class| {
+                define_class(
+                    env,
+                    jni_class_name_cstr.as_ptr(),
+                    std::ptr::null_mut(),
+                    bytecode_ptr,
+                    bytecode_len,
+                )
+            },
+        )?;
+
+        classobj.ok_or_else(|| {
+            crate::Error::JvmInternal(format!("failed to define class `{}`", jni_class_name,))
+        })
     }
 
     /// Registers native methods on the JVM.

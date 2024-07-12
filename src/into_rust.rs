@@ -106,7 +106,8 @@ where
     }
 }
 
-#[derive_where::derive_where(Copy, Clone)]
+#[derive_where::derive_where(Clone)]
+#[derive_where(Copy; This: Copy)]
 pub struct ToRustOp<This, R>
 where
     This: JvmOp,
@@ -135,7 +136,10 @@ where
 {
     type Output<'jvm> = R;
 
-    fn do_jni<'jvm>(self, jvm: &mut Jvm<'jvm>) -> crate::LocalResult<'jvm, Self::Output<'jvm>> {
+    fn execute_with<'jvm>(
+        self,
+        jvm: &mut Jvm<'jvm>,
+    ) -> crate::LocalResult<'jvm, Self::Output<'jvm>> {
         let java = self.this.do_jni(jvm)?;
         let rust = IntoRust::into_rust(java, jvm)?;
         Ok(rust)

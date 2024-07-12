@@ -2,6 +2,7 @@
 
 mod array;
 mod cast;
+mod class_definition;
 mod error;
 mod find;
 mod from_ref;
@@ -23,6 +24,7 @@ mod try_catch;
 /// Contains reusable declarations for classes distributed by the JDK under the `java.*` packages.
 pub mod java;
 
+pub use class_definition::ClassDefinition;
 pub use duchess_macro::{java_function, java_package, ToJava, ToRust};
 pub use error::{Error, LocalResult, Result};
 pub use into_rust::IntoRust;
@@ -53,7 +55,6 @@ pub mod prelude {
 
 /// Internal module containing non-semver protected
 /// names used by generated code.
-#[doc(hidden)]
 pub mod plumbing {
     pub use crate::cast::Upcast;
     pub use crate::find::{find_class, find_constructor, find_field, find_method};
@@ -62,6 +63,8 @@ pub mod plumbing {
     pub use crate::jvm::native_function_returning_scalar;
     pub use crate::jvm::JavaObjectExt;
     pub use crate::jvm::JavaView;
+    pub use crate::jvm::JvmRefOp;
+    pub use crate::jvm::JvmScalarOp;
     pub use crate::link::JavaFn;
     pub use crate::link::JavaFunction;
     pub use crate::raw::{EnvPtr, FieldPtr, FromJniValue, IntoJniValue, MethodPtr, ObjectPtr};

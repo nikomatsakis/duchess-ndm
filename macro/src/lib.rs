@@ -9,6 +9,7 @@ mod check;
 mod class_info;
 mod codegen;
 mod derive;
+mod impl_java_interface;
 mod java_function;
 mod parse;
 mod reflect;
@@ -61,6 +62,50 @@ pub fn java_function(args: TokenStream, input: TokenStream) -> TokenStream {
     }
 }
 
+/// Implement a Java interface for a Rust type.
+///
+/// # Example
+///
+/// Here is an example of implement the `java::lang::Readable`
+/// trait for a Rust type `Buffer`.
+///
+///
+/// ```rust
+/// struct Buffer {
+///     chars: Vec<Char>
+/// }
+///
+/// #[impl_java_interface]
+/// impl java::lang::Readable for Buffer {
+///     fn read(&self, cb: &java::nio::CharBuffer) -> duchess::GlobalResult<i32> {
+///         for &ch in &self.chars {
+///             cb.put(ch).execute();
+///         }
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn impl_java_interface(args: TokenStream, input: TokenStream) -> TokenStream {
+    let args: proc_macro2::TokenStream = args.into();
+    let no_args = match args.clone().into_iter().next() {
+        Some(arg) => Err(syn::Error::new(arg.span(), "no arguments expected")),
+        None => Ok(()),
+    };
+
+    let result = no_args.and_then(|()| {
+        let item_impl = syn::parse::<syn::ItemImpl>(input)?;
+        impl_java_interface::impl_java_interface(&item_impl)
+    });
+
+    match result {
+        Ok(t) => {
+            debug_tokens("impl_java_interface", &t);
+            t.into()
+        }
+        Err(err) => err.into_compile_error().into(),
+    }
+}
+
 synstructure::decl_derive!([ToRust, attributes(java)] => derive::derive_to_rust);
 
 synstructure::decl_derive!([ToJava, attributes(java)] => derive::derive_to_java);
@@ -79,7 +124,7 @@ fn debug_tokens(name: impl std::fmt::Display, token_stream: &proc_macro2::TokenS
     let name = name.to_string();
     let debug_enabled = match debug_filter {
         f if f.eq_ignore_ascii_case("true") || f.eq_ignore_ascii_case("1") => true,
-        filter => name.starts_with(&filter)
+        filter => name.starts_with(&filter),
     };
     if debug_enabled {
         let path = DEBUG_DIR.join(name.replace('.', "_")).with_extension("rs");
@@ -88,7 +133,8 @@ fn debug_tokens(name: impl std::fmt::Display, token_stream: &proc_macro2::TokenS
                 std::fs::write(&path, formatted_tokens).expect("failed to write to debug file");
             }
             Err(_) => {
-                std::fs::write(&path, format!("{token_stream:?}")).expect("failed to write to debug file");
+                std::fs::write(&path, format!("{token_stream:?}"))
+                    .expect("failed to write to debug file");
             }
         }
         // in JetBrains terminal, links are only clickable with a `file:///` prefix. But in VsCode
@@ -102,5 +148,7 @@ fn debug_tokens(name: impl std::fmt::Display, token_stream: &proc_macro2::TokenS
 }
 
 fn running_in_jetbrains() -> bool {
-    std::env::var("TERMINAL_EMULATOR").map(|var|var.contains("JetBrains")).unwrap_or_default()
+    std::env::var("TERMINAL_EMULATOR")
+        .map(|var| var.contains("JetBrains"))
+        .unwrap_or_default()
 }
