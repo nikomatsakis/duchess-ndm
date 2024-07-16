@@ -1,5 +1,5 @@
 [workspace]
-members = ["duchess-reflect"]
+members = [ "duchess-build-rs","duchess-reflect"]
 
 [workspace.package]
 version = "0.3.0"

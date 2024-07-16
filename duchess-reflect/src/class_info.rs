@@ -336,13 +336,21 @@ impl Method {
     /// * `ctx` is the generics scope of the class.
     pub fn descriptor(&self, ctx: &GenericsScope<'_>) -> String {
         let ctx = &ctx.nest(&self.generics);
+        Self::descriptor_from_types(ctx, &self.argument_tys, &self.return_ty)
+    }
+
+    pub fn descriptor_from_types(
+        ctx: &GenericsScope<'_>,
+        argument_tys: &[Type],
+        return_ty: &Option<Type>,
+    ) -> String {
         format!(
             "({}){}",
-            self.argument_tys
+            argument_tys
                 .iter()
                 .map(|a| a.descriptor(ctx))
                 .collect::<String>(),
-            self.return_ty
+            return_ty
                 .as_ref()
                 .map(|r| r.descriptor(ctx))
                 .unwrap_or_else(|| format!("V")),
@@ -411,6 +419,12 @@ pub enum Type {
 impl From<ClassRef> for Type {
     fn from(value: ClassRef) -> Self {
         Type::Ref(RefType::Class(value))
+    }
+}
+
+impl From<ScalarType> for Type {
+    fn from(value: ScalarType) -> Self {
+        Type::Scalar(value)
     }
 }
 
@@ -508,16 +522,7 @@ impl NonRepeatingType {
                     format!("Ljava/lang/Object;")
                 }
             },
-            NonRepeatingType::Scalar(s) => match s {
-                ScalarType::Int => format!("I"),
-                ScalarType::Long => format!("J"),
-                ScalarType::Short => format!("S"),
-                ScalarType::Byte => format!("B"),
-                ScalarType::F64 => format!("D"),
-                ScalarType::F32 => format!("F"),
-                ScalarType::Boolean => format!("Z"),
-                ScalarType::Char => format!("C"),
-            },
+            NonRepeatingType::Scalar(s) => s.descriptor().to_string(),
         }
     }
 }
@@ -585,6 +590,19 @@ impl ScalarType {
             ScalarType::Boolean => quote_spanned!(span => bool),
         }
     }
+
+    pub fn descriptor(&self) -> &'static str {
+        match self {
+            ScalarType::Int => "I",
+            ScalarType::Long => "J",
+            ScalarType::Short => "S",
+            ScalarType::Byte => "B",
+            ScalarType::F64 => "D",
+            ScalarType::F32 => "F",
+            ScalarType::Boolean => "Z",
+            ScalarType::Char => "C",
+        }
+    }
 }
 
 /// A single identifier
@@ -594,9 +612,9 @@ pub struct Id {
 }
 
 impl std::ops::Deref for Id {
-    type Target = String;
+    type Target = str;
 
-    fn deref(&self) -> &String {
+    fn deref(&self) -> &str {
         &self.data
     }
 }
@@ -611,6 +629,14 @@ impl From<&str> for Id {
     fn from(value: &str) -> Self {
         Id {
             data: value.to_owned(),
+        }
+    }
+}
+
+impl From<&Ident> for Id {
+    fn from(value: &Ident) -> Self {
+        Id {
+            data: value.to_string(),
         }
     }
 }
@@ -678,6 +704,10 @@ impl DotId {
         }
     }
 
+    pub fn duchess() -> Self {
+        Self::parse("duchess")
+    }
+
     pub fn object() -> Self {
         Self::parse("java.lang.Object")
     }
@@ -737,13 +767,23 @@ impl DotId {
         (package, name)
     }
 
-    /// Returns a name like `java/lang/Object`
-    pub fn to_jni_name(&self) -> String {
+    /// Create a string-ified version of this name with `sep` in between each component.
+    fn with_sep(&self, sep: &str) -> String {
         self.ids
             .iter()
             .map(|id| &id[..])
             .collect::<Vec<_>>()
-            .join("/")
+            .join(sep)
+    }
+
+    /// Returns a name like `java/lang/Object`
+    pub fn to_jni_name(&self) -> String {
+        self.with_sep("/")
+    }
+
+    /// Returns a name like `java$lang$Object`
+    pub fn to_dollar_name(&self) -> String {
+        self.with_sep("$")
     }
 
     /// Returns a token stream like `java::lang::Object`
@@ -774,4 +814,5 @@ impl std::fmt::Display for DotId {
     }
 }
 
+mod from_syn;
 mod javap;
