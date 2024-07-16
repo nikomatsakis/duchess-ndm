@@ -178,6 +178,13 @@ impl ClassInfo {
     pub fn generics_scope(&self) -> GenericsScope<'_> {
         GenericsScope::Generics(&self.generics, &GenericsScope::Empty)
     }
+
+    /// Returns the pair of (package, class_name) for a shim class that would be generated for `self`.
+    /// Only make sense when `self` is an interface.
+    pub fn shim_name(&self) -> DotId {
+        let shim_id = Id::from(format!("Shim${}", self.name.to_dollar_name()));
+        DotId::new(&[Id::from("duchess")], &shim_id)
+    }
 }
 
 #[derive(Eq, Ord, PartialEq, PartialOrd, Clone, Debug)]
@@ -704,10 +711,6 @@ impl DotId {
         }
     }
 
-    pub fn duchess() -> Self {
-        Self::parse("duchess")
-    }
-
     pub fn object() -> Self {
         Self::parse("java.lang.Object")
     }
@@ -724,6 +727,7 @@ impl DotId {
         Self::parse("java.lang.Throwable")
     }
 
+    #[track_caller]
     pub fn parse(s: impl AsRef<str>) -> DotId {
         let s: &str = s.as_ref();
         let ids: Vec<Id> = s.split(".").map(Id::from).collect();

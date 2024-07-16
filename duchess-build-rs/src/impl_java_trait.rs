@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use duchess_reflect::{class_info::ClassRef, reflect::Reflector};
 use proc_macro2::{Span, TokenStream};
 use syn::spanned::Spanned;
@@ -36,8 +34,8 @@ impl JavaInterfaceImpl {
         let java_interface_info =
             reflector.reflect(&java_interface_ref.name, java_interface_span)?;
 
-        let shim_name = format!("Shim${}", java_interface_info.name.to_dollar_name());
-        let java_file = compiler.java_file("duchess", &shim_name);
+        let shim_name = java_interface_info.shim_name();
+        let java_file = compiler.java_file(&shim_name);
         ShimWriter::new(
             &mut java_file.src_writer()?,
             &shim_name,

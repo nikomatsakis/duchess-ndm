@@ -1,20 +1,19 @@
 use std::{fmt::Display, io::Write};
 
-use duchess_reflect::class_info::ClassInfo;
-use syn::Index;
+use duchess_reflect::class_info::{ClassInfo, DotId};
 
 use crate::code_writer::CodeWriter;
 
 pub struct ShimWriter<'w> {
     cw: CodeWriter<'w>,
-    shim_name: &'w str,
+    shim_name: &'w DotId,
     java_interface_info: &'w ClassInfo,
 }
 
 impl<'w> ShimWriter<'w> {
     pub fn new(
         writer: &'w mut impl Write,
-        shim_name: &'w str,
+        shim_name: &'w DotId,
         java_interface_info: &'w ClassInfo,
     ) -> Self {
         ShimWriter {
@@ -25,12 +24,19 @@ impl<'w> ShimWriter<'w> {
     }
 
     pub fn emit_shim_class(mut self) -> anyhow::Result<()> {
-        write!(self.cw, "package duchess;")?;
+        let (package, class_name) = self.shim_name.split();
+        let package = package
+            .iter()
+            .map(|id| &id[..])
+            .collect::<Vec<_>>()
+            .join(".");
+
+        write!(self.cw, "package {package};")?;
 
         write!(
             self.cw,
-            "public class {} implements {} {{",
-            self.shim_name, self.java_interface_info.name
+            "public class {class_name} implements {} {{",
+            self.java_interface_info.name
         )?;
 
         write!(self.cw, "long nativePointer;")?;
@@ -39,7 +45,7 @@ impl<'w> ShimWriter<'w> {
             "static java.lang.ref.Cleaner cleaner = java.lang.ref.Cleaner.create();"
         )?;
 
-        write!(self.cw, "public {}(long nativePointer) {{", self.shim_name)?;
+        write!(self.cw, "public {class_name}(long nativePointer) {{")?;
         write!(self.cw, "this.nativePointer = nativePointer;")?;
         write!(
             self.cw,

@@ -1,8 +1,9 @@
+use anyhow::Context;
+use duchess_reflect::class_info::{DotId, Id};
+use heck::ToShoutySnakeCase;
 use std::{path::PathBuf, process::Command};
 
-use anyhow::Context;
-
-use crate::code_writer::{self, CodeWriter};
+use crate::code_writer::CodeWriter;
 
 pub struct JavaCompiler {
     temp_dir: PathBuf,
@@ -10,6 +11,7 @@ pub struct JavaCompiler {
 }
 
 pub struct JavaFile {
+    pub class_name: DotId,
     pub java_path: PathBuf,
     pub class_path: PathBuf,
     pub rs_path: PathBuf,
@@ -33,26 +35,28 @@ impl JavaCompiler {
         self.temp_dir.join("class")
     }
 
-    pub fn java_file(&self, package: &str, class_name: &str) -> JavaFile {
+    pub fn java_file(&self, class_name: &DotId) -> JavaFile {
+        let (package_ids, class_id) = class_name.split();
         let java_path = self
-            .make_package_dir(self.src_dir(), package)
-            .join(class_name)
+            .make_package_dir(self.src_dir(), package_ids)
+            .join(&class_id[..])
             .with_extension("java");
         let class_path = self
-            .make_package_dir(self.class_dir(), package)
-            .join(class_name)
+            .make_package_dir(self.class_dir(), package_ids)
+            .join(&class_id[..])
             .with_extension("class");
-        let rs_path = self.out_dir.join(format!("{}.rs", class_name));
+        let rs_path = self.out_dir.join(format!("{}.rs", class_id));
         JavaFile {
+            class_name: class_name.clone(),
             java_path,
             class_path,
             rs_path,
         }
     }
 
-    fn make_package_dir(&self, mut path: PathBuf, package: &str) -> PathBuf {
-        for part in package.split('.') {
-            path.push(part);
+    fn make_package_dir(&self, mut path: PathBuf, package: &[Id]) -> PathBuf {
+        for id in package {
+            path.push(&id[..]);
         }
         std::fs::create_dir_all(&path).unwrap();
         path
@@ -80,20 +84,26 @@ impl JavaCompiler {
     pub fn compile_to_rs_file(&self, java_file: &JavaFile) -> anyhow::Result<()> {
         self.compile(java_file)?;
 
-        let source_text = java_file.source_text()?;
         let class_bytes = java_file.compiled_bytes()?;
+
+        let constant_name = java_file
+            .class_name
+            .class_name()
+            .replace("$", "_")
+            .to_shouty_snake_case();
 
         {
             let mut rs_file = std::fs::File::create(&java_file.rs_path)?;
             let mut cw = CodeWriter::new(&mut rs_file);
 
-            write!(cw, "pub const JAVA_SOURCE: &str = {source_text:?}")?;
-
-            write!(cw, "pub const CLASS_BYTES: &[u8] = &[")?;
+            write!(cw, "pub const {constant_name}: duchess::ClassDefinition = duchess::ClassDefinition::new(")?;
+            write!(cw, "{:?}", java_file.class_name.to_jni_name())?;
+            write!(cw, "&[")?;
             for byte in class_bytes {
-                write!(cw, "{},", byte)?;
+                write!(cw, "{}_i8,", byte)?;
             }
-            write!(cw, "];")?;
+            write!(cw, "],")?;
+            write!(cw, ");")?;
         }
 
         Ok(())
@@ -104,11 +114,6 @@ impl JavaFile {
     pub fn src_writer(&self) -> anyhow::Result<std::fs::File> {
         std::fs::File::create(&self.java_path)
             .with_context(|| format!("writing to `{}`", self.java_path.display()))
-    }
-
-    pub fn source_text(&self) -> anyhow::Result<String> {
-        std::fs::read_to_string(&self.java_path)
-            .with_context(|| format!("reading from `{}`", self.class_path.display()))
     }
 
     pub fn compiled_bytes(&self) -> anyhow::Result<Vec<u8>> {
