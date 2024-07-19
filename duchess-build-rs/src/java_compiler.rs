@@ -1,11 +1,15 @@
 use anyhow::Context;
-use duchess_reflect::class_info::{DotId, Id};
+use duchess_reflect::{
+    class_info::{DotId, Id},
+    config::Configuration,
+};
 use heck::ToShoutySnakeCase;
 use std::{path::PathBuf, process::Command};
 
 use crate::code_writer::CodeWriter;
 
 pub struct JavaCompiler {
+    configuration: Configuration,
     temp_dir: PathBuf,
     out_dir: PathBuf,
 }
@@ -18,13 +22,18 @@ pub struct JavaFile {
 }
 
 impl JavaCompiler {
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new(configuration: &Configuration) -> anyhow::Result<Self> {
         Ok(Self {
+            configuration: configuration.clone(),
             temp_dir: tempfile::TempDir::new()?.into_path(),
             out_dir: std::env::var("OUT_DIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|_| PathBuf::from("target")),
         })
+    }
+
+    pub fn configuration(&self) -> &Configuration {
+        &self.configuration
     }
 
     fn src_dir(&self) -> PathBuf {
@@ -63,7 +72,9 @@ impl JavaCompiler {
     }
 
     pub fn compile(&self, java_file: &JavaFile) -> anyhow::Result<()> {
-        let exit_status = Command::new("javac")
+        let exit_status = Command::new(self.configuration.bin_path("javac"))
+            .arg("-cp")
+            .arg(self.configuration.classpath().unwrap_or_default())
             .arg("-d")
             .arg(self.class_dir())
             .arg(&java_file.java_path)

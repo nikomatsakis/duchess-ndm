@@ -9,7 +9,10 @@ mod java_compiler;
 mod re;
 mod shim_writer;
 
+pub use duchess_reflect::config::Configuration;
+
 pub struct DuchessBuildRs {
+    configuration: Configuration,
     src_path: PathBuf,
     in_cargo: bool,
 }
@@ -17,6 +20,7 @@ pub struct DuchessBuildRs {
 impl Default for DuchessBuildRs {
     fn default() -> Self {
         DuchessBuildRs {
+            configuration: Configuration::default(),
             src_path: PathBuf::from("."),
             in_cargo: std::env::var("CARGO").is_ok() && std::env::var("OUT_DIR").is_ok(),
         }
@@ -28,7 +32,12 @@ impl DuchessBuildRs {
         Self::default()
     }
 
-    pub fn src_path(mut self, src_path: PathBuf) -> Self {
+    pub fn with_configuration(mut self, configuration: Configuration) -> Self {
+        self.configuration = configuration;
+        self
+    }
+
+    pub fn with_src_path(mut self, src_path: PathBuf) -> Self {
         self.src_path = src_path;
         self
     }
@@ -40,7 +49,7 @@ impl DuchessBuildRs {
     }
 
     pub fn execute(self) -> anyhow::Result<()> {
-        let compiler = &JavaCompiler::new()?;
+        let compiler = &JavaCompiler::new(&self.configuration)?;
         for rs_file in files::rs_files(&self.src_path) {
             let rs_file = rs_file?;
 

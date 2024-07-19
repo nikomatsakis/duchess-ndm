@@ -6,6 +6,7 @@ pub mod argument;
 pub mod check;
 pub mod class_info;
 pub mod codegen;
+pub mod config;
 pub mod parse;
 pub mod reflect;
 pub mod signature;

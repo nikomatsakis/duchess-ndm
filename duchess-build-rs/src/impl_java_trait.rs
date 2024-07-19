@@ -29,7 +29,7 @@ impl syn::parse::Parse for JavaInterfaceImpl {
 
 impl JavaInterfaceImpl {
     fn generate_shim(&self, compiler: &JavaCompiler) -> anyhow::Result<()> {
-        let reflector = Reflector::default();
+        let reflector = Reflector::new(compiler.configuration());
         let (java_interface_ref, java_interface_span) = self.java_interface()?;
         let java_interface_info =
             reflector.reflect(&java_interface_ref.name, java_interface_span)?;

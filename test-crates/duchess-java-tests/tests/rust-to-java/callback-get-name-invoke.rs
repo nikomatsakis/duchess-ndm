@@ -4,14 +4,6 @@ use duchess::java;
 use duchess::prelude::*;
 use std::sync::Arc;
 
-duchess::java_package! {
-    package callback;
-
-    class Callback { * }
-    class CallCallback { * }
-    class Dummy { * }
-}
-
 struct Callback {
     last_name: String,
 }

@@ -4,6 +4,7 @@ use crate::{
         ClassInfo, Constructor, DotId, Field, Id, Method, NonRepeatingType, RootMap,
         SpannedPackageInfo, Type,
     },
+    config::Configuration,
     reflect::Reflector,
     signature::Signature,
     upcasts::Upcasts,
@@ -13,8 +14,8 @@ use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote_spanned;
 
 impl DuchessDeclaration {
-    pub fn to_tokens(&self) -> syn::Result<TokenStream> {
-        let reflector = &mut Reflector::default();
+    pub fn to_tokens(&self, configuration: &Configuration) -> syn::Result<TokenStream> {
+        let reflector = &mut Reflector::new(configuration);
         let root_map = self.to_root_map(reflector)?;
         let () = root_map.check(reflector)?;
         root_map.to_tokens(reflector)
