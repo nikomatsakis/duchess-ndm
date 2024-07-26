@@ -119,7 +119,7 @@ impl JavaCompiler {
         let constant_name = java_file
             .class_name
             .class_name()
-            .replace("$", "_")
+            .replace("$", "__")
             .to_shouty_snake_case();
 
         {
