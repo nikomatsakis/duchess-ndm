@@ -49,13 +49,13 @@ impl<'w> ShimWriter<'w> {
         write!(self.cw, "this.nativePointer = nativePointer;")?;
         write!(
             self.cw,
-            "cleaner.register(this, () -> {{ native$drop(nativePointer); }});"
+            "cleaner.register(this, () -> {{ native__drop(nativePointer); }});"
         )?;
         write!(self.cw, "}}")?;
 
         write!(
             self.cw,
-            "native static void native$drop(long nativePointer);"
+            "native static void native__drop(long nativePointer);"
         )?;
 
         for method in &self.java_interface_info.methods {
@@ -66,7 +66,7 @@ impl<'w> ShimWriter<'w> {
                 )
             }
 
-            let native_method_name = format!("native${}", method.name);
+            let native_method_name = format!("native__{}", method.name);
             let return_ty: &dyn Display = if let Some(return_ty) = &method.return_ty {
                 return_ty
             } else {

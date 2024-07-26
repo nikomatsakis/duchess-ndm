@@ -182,8 +182,8 @@ impl ClassInfo {
     /// Returns the pair of (package, class_name) for a shim class that would be generated for `self`.
     /// Only make sense when `self` is an interface.
     pub fn shim_name(&self) -> DotId {
-        let shim_id = Id::from(format!("Shim${}", self.name.to_dollar_name()));
-        DotId::new(&[Id::from("duchess")], &shim_id)
+        let shim_id = Id::from(format!("Shim__{}", self.name.to_shim_name()));
+        DotId::new(&[Id::from("duchess_util")], &shim_id)
     }
 }
 
@@ -785,9 +785,9 @@ impl DotId {
         self.with_sep("/")
     }
 
-    /// Returns a name like `java$lang$Object`
-    pub fn to_dollar_name(&self) -> String {
-        self.with_sep("$")
+    /// Returns a name like `java__lang__Object`
+    pub fn to_shim_name(&self) -> String {
+        self.with_sep("__")
     }
 
     /// Returns a token stream like `java::lang::Object`
