@@ -112,6 +112,7 @@ pub trait JvmOp: Clone {
     {
         ToRustOp::new(self).do_jni(jvm)
     }
+    
     /// Internal method
     fn do_jni<'jvm>(self, jvm: &mut Jvm<'jvm>) -> crate::LocalResult<'jvm, Self::Output<'jvm>>;
 }
