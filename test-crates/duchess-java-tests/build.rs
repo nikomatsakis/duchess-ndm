@@ -10,7 +10,7 @@ use walkdir::WalkDir;
 const TARGET_PATH: &str = "../target";
 
 fn classpath(target: &str) -> String {
-    format!("{target}/java:{target}/tests/java-to-rust/java")
+    format!("{target}/java:{target}/tests/java-to-rust/java:{target}/java-generated/class")
 }
 
 fn main() -> anyhow::Result<()> {
