@@ -6,6 +6,7 @@ mod class_definition;
 mod error;
 mod find;
 mod from_ref;
+mod into_global;
 mod into_rust;
 mod jvm;
 mod libjvm;

@@ -1,6 +1,7 @@
 use crate::{
     cast::{AsUpcast, TryDowncast, Upcast},
     find::find_class,
+    into_global::IntoGlobal,
     into_rust::ToRustOp,
     java::lang::{Class, Throwable},
     link::{IntoJavaFns, JavaFunction},
@@ -112,7 +113,7 @@ pub trait JvmOp: Clone {
     {
         ToRustOp::new(self).do_jni(jvm)
     }
-    
+
     /// Internal method
     fn do_jni<'jvm>(self, jvm: &mut Jvm<'jvm>) -> crate::LocalResult<'jvm, Self::Output<'jvm>>;
 }
@@ -644,6 +645,14 @@ macro_rules! scalar {
             }
 
             impl JavaScalar for $rust {}
+
+            impl crate::into_global::IntoGlobal for $rust {
+                type Output = $rust;
+
+                fn into_global(self, _jvm: &mut Jvm<'_>) -> Self::Output {
+                    self
+                }
+            }
         )*
     };
 }

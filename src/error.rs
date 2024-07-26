@@ -58,18 +58,3 @@ where
         Display::fmt(self, f)
     }
 }
-
-impl<'jvm> Error<Local<'jvm, Throwable>> {
-    pub fn into_global(self, jvm: &mut Jvm<'jvm>) -> Error<Java<Throwable>> {
-        match self {
-            Error::Thrown(t) => Error::Thrown(jvm.global(&t)),
-            Error::SliceTooLong(s) => Error::SliceTooLong(s),
-            Error::NullDeref => Error::NullDeref,
-            Error::NestedUsage => Error::NestedUsage,
-            Error::JvmAlreadyExists => Error::JvmAlreadyExists,
-            #[cfg(feature = "dylibjvm")]
-            Error::UnableToLoadLibjvm(e) => Error::UnableToLoadLibjvm(e),
-            Error::JvmInternal(m) => Error::JvmInternal(m),
-        }
-    }
-}
