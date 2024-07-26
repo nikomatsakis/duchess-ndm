@@ -5,12 +5,14 @@ use duchess_reflect::{
 };
 use heck::ToShoutySnakeCase;
 use std::{path::PathBuf, process::Command};
+use tempfile::TempDir;
 
 use crate::code_writer::CodeWriter;
 
 pub struct JavaCompiler {
     configuration: Configuration,
-    temp_dir: PathBuf,
+    temp_dir_path: PathBuf,
+    temp_dir: Option<TempDir>,
     out_dir: PathBuf,
 }
 
@@ -22,10 +24,27 @@ pub struct JavaFile {
 }
 
 impl JavaCompiler {
-    pub fn new(configuration: &Configuration) -> anyhow::Result<Self> {
+    pub fn new(
+        configuration: &Configuration,
+        temporary_dir: Option<&PathBuf>,
+    ) -> anyhow::Result<Self> {
+        let (temp_dir, temp_dir_path);
+        match temporary_dir {
+            Some(d) => {
+                temp_dir_path = d.clone();
+                temp_dir = None;
+            }
+            None => {
+                let d = tempfile::TempDir::new()?;
+                temp_dir_path = d.path().to_path_buf();
+                temp_dir = Some(d);
+            }
+        }
+
         Ok(Self {
             configuration: configuration.clone(),
-            temp_dir: tempfile::TempDir::new()?.into_path(),
+            temp_dir,
+            temp_dir_path,
             out_dir: std::env::var("OUT_DIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|_| PathBuf::from("target")),
@@ -37,11 +56,11 @@ impl JavaCompiler {
     }
 
     fn src_dir(&self) -> PathBuf {
-        self.temp_dir.join("src")
+        self.temp_dir_path.join("src")
     }
 
     fn class_dir(&self) -> PathBuf {
-        self.temp_dir.join("class")
+        self.temp_dir_path.join("class")
     }
 
     pub fn java_file(&self, class_name: &DotId) -> JavaFile {
