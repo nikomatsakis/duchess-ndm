@@ -25,7 +25,7 @@ mod try_catch;
 pub mod java;
 
 pub use class_definition::ClassDefinition;
-pub use duchess_macro::{java_function, java_package, ToJava, ToRust};
+pub use duchess_macro::{impl_java_interface, java_function, java_package, ToJava, ToRust};
 pub use error::{Error, LocalResult, Result};
 pub use into_rust::IntoRust;
 pub use jvm::JavaObject;

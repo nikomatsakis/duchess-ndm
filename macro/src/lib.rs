@@ -4,8 +4,11 @@ use parse::Parser;
 use proc_macro::TokenStream;
 
 use duchess_reflect::*;
+use syn::parse::Nothing;
 
 mod derive;
+mod hygiene;
+mod impl_java_interface;
 mod java_function;
 
 /// The main duchess macro, used like so
@@ -48,6 +51,24 @@ pub fn java_function(args: TokenStream, input: TokenStream) -> TokenStream {
     };
 
     match java_function::java_function(args, item_fn) {
+        Ok(t) => t.into(),
+        Err(err) => err.into_compile_error().into(),
+    }
+}
+
+#[proc_macro_attribute]
+pub fn impl_java_interface(args: TokenStream, input: TokenStream) -> TokenStream {
+    let _: Nothing = match syn::parse(args) {
+        Ok(n) => n,
+        Err(err) => return err.into_compile_error().into(),
+    };
+
+    let item_impl: syn::ItemImpl = match syn::parse(input) {
+        Ok(item_impl) => item_impl,
+        Err(err) => return err.into_compile_error().into(),
+    };
+
+    match impl_java_interface::impl_java_interface(item_impl) {
         Ok(t) => t.into(),
         Err(err) => err.into_compile_error().into(),
     }
