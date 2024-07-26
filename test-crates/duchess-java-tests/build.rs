@@ -9,13 +9,17 @@ use walkdir::WalkDir;
 // This controls where this script writes built files
 const TARGET_PATH: &str = "../target";
 
+fn classpath(target: &str) -> String {
+    format!("{target}/java:{target}/tests/java-to-rust/java")
+}
+
 fn main() -> anyhow::Result<()> {
     // Rerun java build if any source file changes, but then we'll check each file individually below
     let java_source_paths = vec!["java", "tests/java-to-rust/java"];
     for source_path in java_source_paths.iter() {
         println!("cargo:rerun-if-changed={}", source_path);
     }
-    println!("cargo:rustc-env=CLASSPATH=target/java:target/tests/java-to-rust/java");
+    println!("cargo:rustc-env=CLASSPATH={}", classpath("target"));
 
     let target_dir = Path::new(TARGET_PATH);
 
@@ -45,10 +49,8 @@ fn main() -> anyhow::Result<()> {
     // This has to run after the compilations above
     eprintln!("{:?}", std::env::current_dir());
     duchess_build_rs::DuchessBuildRs::new()
-        .with_configuration(
-            Configuration::default()
-                .with_classpath("../target/java:../target/tests/java-to-rust/java"),
-        )
+        .with_configuration(Configuration::default().with_classpath(&classpath("../target")))
+        .with_temporary_dir("../target/java-generated")
         .execute()?;
 
     Ok(())
