@@ -10,9 +10,17 @@ use tempfile::TempDir;
 use crate::code_writer::CodeWriter;
 
 pub struct JavaCompiler {
+    /// Configuration for running javac
     configuration: Configuration,
+
+    /// Where to put temporary files
     temp_dir_path: PathBuf,
+
+    /// Guard that will delete temporary directory when done (if needed)
+    #[allow(dead_code)]
     temp_dir: Option<TempDir>,
+
+    /// Ourput directory for final results
     out_dir: PathBuf,
 }
 
