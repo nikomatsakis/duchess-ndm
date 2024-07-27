@@ -10,7 +10,7 @@ use crate::{
     raw::{self, EnvPtr, JvmPtr, ObjectPtr},
     thread,
     try_catch::TryCatch,
-    AsJRef, ClassDefinition, Error, IntoRust, Java, Local, Result, ToJava, TryJDeref,
+    AsJRef, Error, IntoRust, Java, Local, Result, ToJava, TryJDeref,
 };
 
 use std::{
@@ -416,12 +416,12 @@ impl<'jvm> Jvm<'jvm> {
         Ok(())
     }
 
-    pub fn define_class(&mut self, class: &ClassDefinition) -> crate::LocalResult<'jvm, ()> {
-        unsafe {
-            self.0
-                .define_class(class.jni_class_name(), class.bytecode())?;
-            Ok(())
-        }
+    pub fn define_class(
+        &mut self,
+        jni_class_name: &str,
+        bytecode: &[i8],
+    ) -> crate::LocalResult<'jvm, Local<'jvm, Class>> {
+        unsafe { self.0.define_class(jni_class_name, bytecode) }
     }
 }
 

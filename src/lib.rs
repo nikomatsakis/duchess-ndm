@@ -25,7 +25,6 @@ mod try_catch;
 /// Contains reusable declarations for classes distributed by the JDK under the `java.*` packages.
 pub mod java;
 
-pub use class_definition::ClassDefinition;
 pub use duchess_macro::{impl_java_interface, java_function, java_package, ToJava, ToRust};
 pub use error::{Error, LocalResult, Result};
 pub use into_rust::IntoRust;
@@ -58,6 +57,7 @@ pub mod prelude {
 /// names used by generated code.
 pub mod plumbing {
     pub use crate::cast::Upcast;
+    pub use crate::class_definition::ClassDefinition;
     pub use crate::find::{find_class, find_constructor, find_field, find_method};
     pub use crate::from_ref::FromRef;
     pub use crate::jvm::native_function_returning_object;

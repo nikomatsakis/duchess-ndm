@@ -134,8 +134,9 @@ impl JavaCompiler {
             let mut rs_file = std::fs::File::create(&java_file.rs_path)?;
             let mut cw = CodeWriter::new(&mut rs_file);
 
-            write!(cw, "pub const {constant_name}: duchess::ClassDefinition = duchess::ClassDefinition::new(")?;
-            write!(cw, "{:?}", java_file.class_name.to_jni_name())?;
+            write!(cw, "pub const {constant_name}: duchess::plumbing::ClassDefinition = duchess::plumbing::ClassDefinition::new(")?;
+            write!(cw, "{:?},", java_file.class_name.to_string())?;
+            write!(cw, "{:?},", java_file.class_name.to_jni_name())?;
             write!(cw, "&[")?;
             for byte in class_bytes {
                 write!(cw, "{}_i8,", byte as i8)?;
