@@ -77,6 +77,11 @@ impl ClassDefinition {
     }
 
     fn register_with<'jvm>(&self, jvm: &mut Jvm<'jvm>) -> crate::LocalResult<'jvm, &Java<Class>> {
+        eprintln!(
+            "register_with: {} / {}",
+            self.human_class_name,
+            self.jni_class_name()
+        );
         self.sync.get_or_try_init(|| {
             jvm.define_class(self.jni_class_name(), self.bytecode())
                 .map(|j| j.into_global(jvm))
