@@ -138,7 +138,7 @@ impl JavaCompiler {
             write!(cw, "{:?}", java_file.class_name.to_jni_name())?;
             write!(cw, "&[")?;
             for byte in class_bytes {
-                write!(cw, "{}_i8,", byte)?;
+                write!(cw, "{}_i8,", byte as i8)?;
             }
             write!(cw, "],")?;
             write!(cw, ");")?;
