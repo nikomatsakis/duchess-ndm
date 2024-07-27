@@ -139,7 +139,7 @@ fn run_java_tests(
 
 /// Tests that begin with Rust calling into a JVM that Rust created.
 fn rust_to_java_tests(test_name_filter: Option<&OsString>) -> color_eyre::eyre::Result<()> {
-    std::env::set_var("CLASSPATH", "../target/java:../target/java-generated/class");
+    std::env::set_var("CLASSPATH", "../target/java");
 
     run_rust_tests(
         "rust ui tests",
