@@ -39,19 +39,7 @@ duchess::java_package! {
     }
 }
 
-duchess::java_package! {
-    package duchess_util;
-
-    public class duchess_util.Shim__callback__GetName implements callback.GetName {
-        long nativePointer;
-        static java.lang.ref.Cleaner cleaner;
-        public duchess.Shim__callback__GetName(long);
-        static native void native__drop(long);
-        static native java.lang.String native__getName(java.lang.String, long);
-        public java.lang.String getName(java.lang.String);
-        static {};
-    }
-}
+include!(concat!(env!("OUT_DIR"), "/Shim__callback__GetName.rs"));
 
 impl duchess::IntoJava<callback::GetName> for Callback {
     type JvmOp = ToJavaInterface;
@@ -69,33 +57,30 @@ impl duchess::JvmOp for ToJavaInterface {
         jvm: &mut duchess::Jvm<'jvm>,
     ) -> duchess::LocalResult<'jvm, Self::Output<'jvm>> {
         let value = self.cb.clone();
-        let value_long: i64 = Arc::into_raw(value) as usize as i64;
-        duchess_util::Shim__callback__GetName::new(value_long)
-            .upcast()
-            .do_jni(jvm)
+        unsafe { SHIM_CALLBACK_GET_NAME.instantiate_shim_for::<_, callback::GetName>(jvm, value) }
     }
 }
 
-#[duchess::java_function(duchess_util.Shim__callback__GetName::native__getName)]
-fn get_name_native(name: &java::lang::String, native_pointer: i64) -> duchess::Result<String> {
-    let native_pointer: *mut Callback = native_pointer as usize as *mut Callback;
-    let callback = unsafe { &*native_pointer };
-    let name: String = name.execute()?;
-    Ok(format!("{name} {}", callback.last_name))
-}
+// #[duchess::java_function(duchess_util.Shim__callback__GetName::native__getName)]
+// fn get_name_native(name: &java::lang::String, native_pointer: i64) -> duchess::Result<String> {
+//     let native_pointer: *mut Callback = native_pointer as usize as *mut Callback;
+//     let callback = unsafe { &*native_pointer };
+//     let name: String = name.execute()?;
+//     Ok(format!("{name} {}", callback.last_name))
+// }
 
-#[duchess::java_function(duchess_util.Shim__callback__GetName::native__drop)]
-fn drop_native(native_pointer: i64) -> () {
-    let native_pointer: *mut Callback = native_pointer as usize as *mut Callback;
-    unsafe {
-        Arc::from_raw(native_pointer);
-    }
-}
+// #[duchess::java_function(duchess_util.Shim__callback__GetName::native__drop)]
+// fn drop_native(native_pointer: i64) -> () {
+//     let native_pointer: *mut Callback = native_pointer as usize as *mut Callback;
+//     unsafe {
+//         Arc::from_raw(native_pointer);
+//     }
+// }
 
 fn main() -> duchess::Result<()> {
-    duchess::Jvm::builder()
-        .link(vec![get_name_native::java_fn()])
-        .try_launch()?;
+    // duchess::Jvm::builder()
+    //     .link(vec![get_name_native::java_fn()])
+    //     .try_launch()?;
 
     let get_name_from = callback::GetNameFrom::new().execute()?;
 
