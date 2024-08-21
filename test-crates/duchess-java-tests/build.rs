@@ -51,6 +51,7 @@ fn main() -> anyhow::Result<()> {
     duchess_build_rs::DuchessBuildRs::new()
         .with_configuration(Configuration::default().with_classpath(&classpath("../target")))
         .with_temporary_dir("../target/java-generated")
+        .with_output_dir("../target/java")
         .execute()?;
 
     Ok(())

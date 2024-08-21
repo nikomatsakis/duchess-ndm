@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{ffi::CStr, sync::Arc};
 
 use once_cell::sync::OnceCell;
 
@@ -18,7 +18,11 @@ pub struct ClassDefinition {
     data: ClassDefinitionData,
 }
 
+#[derive(Debug)]
 enum ClassDefinitionData {
+    External {
+        jni_class_name: &'static CStr,
+    },
     Const {
         jni_class_name: &'static str,
         bytecode: &'static [i8],
@@ -54,21 +58,29 @@ impl ClassDefinition {
         }
     }
 
-    pub fn jni_class_name(&self) -> &str {
-        match &self.data {
-            ClassDefinitionData::Const {
-                jni_class_name,
-                bytecode: _,
-            } => &jni_class_name,
-        }
-    }
-
-    pub fn bytecode(&self) -> &[i8] {
-        match &self.data {
-            ClassDefinitionData::Const {
-                jni_class_name: _,
-                bytecode,
-            } => bytecode,
+    /// Create a new "shim class" definition, intended to be stored in a `STATIC`.
+    /// Calls to this constructor are created via duchess's build-rs plumbing and macros.
+    ///
+    /// Shim classes are autogeneated classes that hold a reference to a Rust object
+    /// and implement some Java interface; every Java interface method delegates to a native
+    /// method that calls into Rust.
+    ///
+    /// # Parameters
+    ///
+    /// * `human_class_name`, human readable class name for the shim (e.g., `duchess_util.Foo`)
+    /// * `jni_class_name`, the shim class name prepared for JNI (e.g., `duchess_util/Foo`)
+    /// * `bytecode`, bytecode of the class
+    pub const fn new_external(
+        human_class_name: &'static str,
+        jni_class_name: &'static CStr,
+    ) -> Self {
+        Self {
+            human_class_name,
+            constructor: OnceCell::new(),
+            sync: OnceCell::new(),
+            data: ClassDefinitionData::External {
+                jni_class_name: jni_class_name,
+            },
         }
     }
 
@@ -77,14 +89,18 @@ impl ClassDefinition {
     }
 
     fn register_with<'jvm>(&self, jvm: &mut Jvm<'jvm>) -> crate::LocalResult<'jvm, &Java<Class>> {
-        eprintln!(
-            "register_with: {} / {}",
-            self.human_class_name,
-            self.jni_class_name()
-        );
-        self.sync.get_or_try_init(|| {
-            jvm.define_class(self.jni_class_name(), self.bytecode())
-                .map(|j| j.into_global(jvm))
+        eprintln!("register_with: {} / {:?}", self.human_class_name, self.data,);
+        self.sync.get_or_try_init(|| match &self.data {
+            ClassDefinitionData::External { jni_class_name } => {
+                crate::plumbing::find_class(jvm, jni_class_name)
+                    .map(|j: Local<'jvm, _>| j.into_global(jvm))
+            }
+            ClassDefinitionData::Const {
+                bytecode,
+                jni_class_name,
+            } => jvm
+                .define_class(jni_class_name, bytecode)
+                .map(|j: Local<'jvm, _>| j.into_global(jvm)),
         })
     }
 
@@ -109,6 +125,7 @@ impl ClassDefinition {
             })
         })?;
         let env = jvm.env();
+        eprintln!("AA {}", Arc::strong_count(&object));
         let object = Arc::into_raw(object) as usize as i64;
         let obj: Option<Local<'jvm, Object>> = unsafe {
             env.invoke(

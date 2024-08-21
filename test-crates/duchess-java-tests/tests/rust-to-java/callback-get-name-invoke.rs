@@ -10,7 +10,7 @@ struct Callback {
 
 impl Drop for Callback {
     fn drop(&mut self) {
-        panic!("callback drop");
+        // panic!("callback drop");
     }
 }
 
@@ -59,10 +59,11 @@ impl duchess::JvmOp for ToJavaInterface {
     ) -> duchess::LocalResult<'jvm, Self::Output<'jvm>> {
         eprintln!("X");
         let value = self.cb.clone();
-        eprintln!("Y");
+        eprintln!("Y {}", Arc::strong_count(&value));
         let result = unsafe {
             SHIM_CALLBACK_GET_NAME.instantiate_shim_for::<_, callback::GetName>(jvm, value)
         };
+        eprintln!("Z {}", Arc::strong_count(&self.cb));
         result
     }
 }
@@ -87,6 +88,8 @@ fn main() -> duchess::Result<()> {
     // duchess::Jvm::builder()
     //     .link(vec![get_name_native::java_fn()])
     //     .try_launch()?;
+
+    eprintln!("{:?}", std::env::var("CLASSPATH"));
 
     let get_name_from = callback::GetNameFrom::new().execute()?;
 
