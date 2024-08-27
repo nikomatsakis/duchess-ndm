@@ -13,7 +13,7 @@ use crate::{
 
 pub struct ClassDefinition {
     human_class_name: &'static str,
-    sync: OnceCell<Java<Class>>,
+    class: OnceCell<Java<Class>>,
     constructor: OnceCell<MethodPtr>,
     data: ClassDefinitionData,
 }
@@ -50,7 +50,7 @@ impl ClassDefinition {
         Self {
             human_class_name,
             constructor: OnceCell::new(),
-            sync: OnceCell::new(),
+            class: OnceCell::new(),
             data: ClassDefinitionData::Const {
                 jni_class_name,
                 bytecode,
@@ -77,7 +77,7 @@ impl ClassDefinition {
         Self {
             human_class_name,
             constructor: OnceCell::new(),
-            sync: OnceCell::new(),
+            class: OnceCell::new(),
             data: ClassDefinitionData::External {
                 jni_class_name: jni_class_name,
             },
@@ -90,7 +90,7 @@ impl ClassDefinition {
 
     fn register_with<'jvm>(&self, jvm: &mut Jvm<'jvm>) -> crate::LocalResult<'jvm, &Java<Class>> {
         eprintln!("register_with: {} / {:?}", self.human_class_name, self.data,);
-        self.sync.get_or_try_init(|| match &self.data {
+        self.class.get_or_try_init(|| match &self.data {
             ClassDefinitionData::External { jni_class_name } => {
                 crate::plumbing::find_class(jvm, jni_class_name)
                     .map(|j: Local<'jvm, _>| j.into_global(jvm))
