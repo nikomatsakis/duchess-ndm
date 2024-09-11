@@ -387,7 +387,7 @@ impl<'jvm> Jvm<'jvm> {
         self.0
     }
 
-    fn register_native_methods(
+    pub(crate) fn register_native_methods(
         &mut self,
         java_functions: &[JavaFunction],
     ) -> crate::LocalResult<'jvm, ()> {

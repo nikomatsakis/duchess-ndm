@@ -148,6 +148,11 @@ impl JavaCompiler {
                 write!(cw, "{:?},", java_file.class_name.to_string())?;
                 write!(
                     cw,
+                    "// {:?}",
+                    java_file.class_name.to_jni_name()
+                )?;
+                write!(
+                    cw,
                     "unsafe {{ ::core::ffi::CStr::from_bytes_with_nul_unchecked(&["
                 )?;
                 for b in java_file.class_name.to_jni_name().as_bytes() {

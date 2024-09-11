@@ -1,4 +1,7 @@
-use std::{ffi::CString, ptr::NonNull};
+use std::{
+    ffi::{CStr, CString},
+    ptr::NonNull,
+};
 
 use crate::{java::lang::Class, Jvm, Local};
 
@@ -9,7 +12,8 @@ pub struct JavaFunction {
     pub(crate) class_fn: ClassFn,
 }
 
-pub type ClassFn = for<'jvm> fn(jvm: &mut Jvm<'jvm>) -> crate::LocalResult<'jvm, Local<'jvm, Class>>;
+pub type ClassFn =
+    for<'jvm> fn(jvm: &mut Jvm<'jvm>) -> crate::LocalResult<'jvm, Local<'jvm, Class>>;
 
 impl JavaFunction {
     /// Create a new `JavaFunction` value with an appropriate name, signature, and function pointer.

@@ -68,13 +68,13 @@ impl duchess::JvmOp for ToJavaInterface {
     }
 }
 
-// #[duchess::java_function(duchess_util.Shim__callback__GetName::native__getName)]
-// fn get_name_native(name: &java::lang::String, native_pointer: i64) -> duchess::Result<String> {
-//     let native_pointer: *mut Callback = native_pointer as usize as *mut Callback;
-//     let callback = unsafe { &*native_pointer };
-//     let name: String = name.execute()?;
-//     Ok(format!("{name} {}", callback.last_name))
-// }
+#[duchess::java_function(duchess_util.Shim__callback__GetName::native__getName)]
+fn get_name_native(name: &java::lang::String, native_pointer: i64) -> duchess::Result<String> {
+    let native_pointer: *mut Callback = native_pointer as usize as *mut Callback;
+    let callback = unsafe { &*native_pointer };
+    let name: String = name.execute()?;
+    Ok(format!("{name} {}", callback.last_name))
+}
 
 // #[duchess::java_function(duchess_util.Shim__callback__GetName::native__drop)]
 // fn drop_native(native_pointer: i64) -> () {
@@ -85,9 +85,9 @@ impl duchess::JvmOp for ToJavaInterface {
 // }
 
 fn main() -> duchess::Result<()> {
-    // duchess::Jvm::builder()
-    //     .link(vec![get_name_native::java_fn()])
-    //     .try_launch()?;
+    duchess::Jvm::builder()
+        .link(vec![get_name_native::java_fn()])
+        .try_launch()?;
 
     eprintln!("{:?}", std::env::var("CLASSPATH"));
 

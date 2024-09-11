@@ -17,6 +17,7 @@ mod ops;
 mod raw;
 mod ref_;
 mod refs;
+mod shim_class;
 mod str;
 mod thread;
 mod to_java;
@@ -70,6 +71,7 @@ pub mod plumbing {
     pub use crate::link::JavaFunction;
     pub use crate::raw::{EnvPtr, FieldPtr, FromJniValue, IntoJniValue, MethodPtr, ObjectPtr};
     pub use crate::refs::NullJRef;
+    pub use crate::shim_class::ShimClassDefinition;
     pub use crate::to_java::ToJavaImpl;
     pub use jni_sys;
     pub use once_cell;
