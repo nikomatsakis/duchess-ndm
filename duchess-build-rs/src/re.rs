@@ -11,3 +11,5 @@ macro_rules! declare_regex {
 }
 
 declare_regex!(impl_java_interface() = r"#\[duchess::impl_java_interface\]");
+
+declare_regex!(java_package() = r"duchess::java_package! *\{");

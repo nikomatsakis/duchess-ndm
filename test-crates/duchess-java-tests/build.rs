@@ -8,7 +8,10 @@ use walkdir::WalkDir;
 // This controls where this script writes built files
 const TARGET_PATH: &str = "../target";
 
-fn main() -> std::io::Result<()> {
+fn main() -> anyhow::Result<()> {
+    // Standard duchess preprocessing.
+    duchess_build_rs::DuchessBuildRs::new().execute()?;
+
     // Rerun java build if any source file changes, but then we'll check each file individually below
     let java_source_paths = vec!["java", "tests/java-to-rust/java"];
     for source_path in java_source_paths.iter() {

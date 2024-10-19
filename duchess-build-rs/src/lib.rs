@@ -6,6 +6,7 @@ mod code_writer;
 mod files;
 mod impl_java_trait;
 mod java_compiler;
+mod java_package_macro;
 mod re;
 mod shim_writer;
 
@@ -58,6 +59,12 @@ impl DuchessBuildRs {
         let compiler = &JavaCompiler::new()?;
         for rs_file in files::rs_files(&self.src_path) {
             let rs_file = rs_file?;
+
+            for capture in re::java_package().captures_iter(&rs_file.contents) {
+                let std::ops::Range { start, end: _ } = capture.get(0).unwrap().range();
+                java_package_macro::process_macro(compiler, &rs_file, start)?;
+            }
+
             for capture in re::impl_java_interface().captures_iter(&rs_file.contents) {
                 let std::ops::Range { start, end: _ } = capture.get(0).unwrap().range();
                 impl_java_trait::process_impl(compiler, &rs_file, start)?;

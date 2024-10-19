@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use duchess_reflect::{class_info::ClassRef, reflect::Reflector};
 use proc_macro2::{Span, TokenStream};
 use syn::spanned::Spanned;
@@ -7,7 +5,7 @@ use syn::spanned::Spanned;
 use crate::{files::File, java_compiler::JavaCompiler, shim_writer::ShimWriter};
 
 pub fn process_impl(compiler: &JavaCompiler, file: &File, offset: usize) -> anyhow::Result<()> {
-    let the_impl: JavaInterfaceImpl = syn::parse_str(&file.contents[offset..])?;
+    let the_impl: JavaInterfaceImpl = syn::parse_str(file.rust_slice_from(offset))?;
     the_impl.generate_shim(compiler)?;
     Ok(())
 }
